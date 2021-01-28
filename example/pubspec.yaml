@@ -1,0 +1,31 @@
+name: flutter_autofill_example
+description: Demonstrates how to use the flutter_autofill plugin.
+publish_to: 'none'
+
+environment:
+  sdk: ">=2.1.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  logging: ^0.11.4
+  logging_appenders: ^0.4.2+3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_autofill:
+    path: ../
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
