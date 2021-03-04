@@ -39,6 +39,7 @@ class FlutterAutofillService : AutofillService() {
         metaData.getString("com.keevault.flutter_autofill.unlock_label")?.let {
             unlockLabel = it
         }
+        //TODO: Find a way to localise this message and the "pick another" message
         logger.info("Unlock label will be $unlockLabel")
     }
 
@@ -70,37 +71,8 @@ class FlutterAutofillService : AutofillService() {
         } ?: "com.keevault.keevault.MainActivity"
         logger.debug("got activity $activityName")
 
-        val startIntent = Intent()
-        // TODO: Figure this out how to do this without hard coding everything..
-        startIntent.setClassName(applicationContext, activityName)
-        startIntent.action = Intent.ACTION_RUN
-        //"com.keevault.flutter_autofill_example.MainActivity")
-//        val startIntent = Intent(Intent.ACTION_MAIN).apply {
-//                                `package` = applicationContext.packageName
-//                    logger.debug { "Creating custom intent." }
-//                }
-//        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        startIntent.putExtra("route", "/autofill")
-        startIntent.putExtra("initial_route", "/autofill")
-        parser.packageName.firstOrNull()?.let {
-            startIntent.putExtra(
-                "autofillPackageName",
-                it
-            )
-        }
-        if (parser.webDomain.size > 1) {
-            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomain}" }
-        }
-        parser.webDomain
-                .firstOrNull { it.domain.isNotBlank() }
-                ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
-        // We serialize to string, because the Parcelable made some serious problems.
-        // https://stackoverflow.com/a/39478479/109219
-        startIntent.putExtra(
-            AutofillMetadata.EXTRA_NAME,
-            AutofillMetadata(parser.packageName, parser.webDomain).toJsonString()
-        )
-//        startIntent.putParcelableArrayListExtra("autofillIds", ArrayList(parser.autoFillIds))
+        val startIntent = getStartIntent(activityName, parser)
+        //        startIntent.putParcelableArrayListExtra("autofillIds", ArrayList(parser.autoFillIds))
         val intentSender: IntentSender = PendingIntent.getActivity(
             this,
             0,
@@ -134,6 +106,41 @@ class FlutterAutofillService : AutofillService() {
               e
             )
         }
+    }
+
+    //TODO: Share this with the flutter plugin somehow
+    fun getStartIntent(activityName: String, parser: AssistStructureParser): Intent {
+        val startIntent = Intent()
+        // TODO: Figure this out how to do this without hard coding everything..
+        startIntent.setClassName(applicationContext, activityName)
+        startIntent.action = Intent.ACTION_RUN
+        //"com.keevault.flutter_autofill_example.MainActivity")
+        //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
+        //                                `package` = applicationContext.packageName
+        //                    logger.debug { "Creating custom intent." }
+        //                }
+        //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startIntent.putExtra("route", "/autofill")
+        startIntent.putExtra("initial_route", "/autofill")
+        parser.packageName.firstOrNull()?.let {
+            startIntent.putExtra(
+                    "autofillPackageName",
+                    it
+            )
+        }
+        if (parser.webDomain.size > 1) {
+            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomain}" }
+        }
+        parser.webDomain
+                .firstOrNull { it.domain.isNotBlank() }
+                ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
+        // We serialize to string, because the Parcelable made some serious problems.
+        // https://stackoverflow.com/a/39478479/109219
+        startIntent.putExtra(
+                AutofillMetadata.EXTRA_NAME,
+                AutofillMetadata(parser.packageName, parser.webDomain).toJsonString()
+        )
+        return startIntent
     }
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {

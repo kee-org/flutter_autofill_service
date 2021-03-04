@@ -64,12 +64,32 @@ class _MyAppState extends State<MyApp> {
                 child: const Text('finish'),
                 onPressed: () async {
                   _logger.fine('Starting request.');
+                  final response = await AutofillService().resultWithDatasets([
+                    PwDataset(
+                      label: 'this is the label 1',
+                      username: 'dummyUsername1',
+                      password: 'dpwd1',
+                    ),
+                    PwDataset(
+                      label: 'this is the label 2',
+                      username: 'dummyUsername2',
+                      password: 'dpwd2',
+                    ),
+                  ]);
+                  _logger.fine('resultWithDatasets $response');
+                  await _updateStatus();
+                },
+              ),
+              RaisedButton(
+                child: const Text('finish other'),
+                onPressed: () async {
+                  _logger.fine('Starting request.');
                   final response = await AutofillService().resultWithDataset(
-                    label: 'this is the label',
-                    username: 'dummyUsername',
-                    password: 'dpwd',
+                    label: 'this is the label 3',
+                    username: 'dummyUsername3',
+                    password: 'dpwd3',
                   );
-                  _logger.fine('resultWithDataset $response');
+                  _logger.fine('resultWithDatasets $response');
                   await _updateStatus();
                 },
               ),

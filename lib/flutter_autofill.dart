@@ -12,6 +12,17 @@ enum AutofillServiceStatus {
   enabled,
 }
 
+class PwDataset {
+  String label;
+  String username;
+  String password;
+  PwDataset({
+    this.label,
+    this.username,
+    this.password,
+  });
+}
+
 class AutofillPreferences {
   AutofillPreferences({this.enableDebug});
 
@@ -83,6 +94,18 @@ class AutofillService {
       'label': label,
       'username': username,
       'password': password
+    });
+  }
+
+  Future<bool> resultWithDatasets(List<PwDataset> datasets) async {
+    return await _channel.invokeMethod('resultWithDatasets', {
+      'datasets': datasets
+          .map((d) => <String, dynamic>{
+                'label': d.label,
+                'username': d.username,
+                'password': d.password
+              })
+          .toList(growable: false)
     });
   }
 

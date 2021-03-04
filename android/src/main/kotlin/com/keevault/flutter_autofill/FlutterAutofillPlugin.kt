@@ -2,9 +2,12 @@ package com.keevault.flutter_autofill
 
 import android.annotation.SuppressLint
 import android.app.Activity.RESULT_OK
+import android.app.PendingIntent
 import android.app.assist.AssistStructure
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -29,9 +32,9 @@ import mu.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 data class PwDataset(
-    val label: String,
-    val username: String,
-    val password: String
+        val label: String,
+        val username: String,
+        val password: String
 )
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -41,12 +44,13 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     companion object {
         // some creative way so we have some more or less unique result code? 🤷️
         val REQUEST_CODE_SET_AUTOFILL_SERVICE =
-            FlutterAutofillPlugin::class.java.hashCode() and 0xffff
+                FlutterAutofillPlugin::class.java.hashCode() and 0xffff
 
     }
 
     private val autofillManager by lazy {
-        requireNotNull(context.getSystemService(AutofillManager::class.java)) }
+        requireNotNull(context.getSystemService(AutofillManager::class.java))
+    }
     private val autofillPreferenceStore by lazy { AutofillPreferenceStore.getInstance(context) }
     private var requestSetAutofillServiceResult: Result? = null
     private var lastIntent: Intent? = null
@@ -55,7 +59,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     private val activity get() = activityBinding?.activity
 
     override fun onMethodCall(call: MethodCall, result: Result) {
-        logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}"}
+        logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}" }
         when (call.method) {
             "hasAutofillServicesSupport" ->
                 result.success(true)
@@ -79,7 +83,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             // method available while we are handling an autofill request.
             "getAutofillMetadata" -> {
                 val metadata = activity?.intent?.getStringExtra(
-                    AutofillMetadata.EXTRA_NAME
+                        AutofillMetadata.EXTRA_NAME
                 )?.let(AutofillMetadata.Companion::fromJsonString)
                 logger.debug { "Got metadata: $metadata" }
                 result.success(metadata?.toJson())
@@ -87,9 +91,17 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             "resultWithDataset" -> {
                 resultWithDataset(call, result)
             }
+            "resultWithDatasets" -> {
+                val sets = call.argument<List<Map<String, String>>>("datasets");
+                val list = sets?.map { m ->
+                    m["label"]?.let { m["username"]?.let { it1 -> m["password"]?.let { it2 -> PwDataset(it, it1, it2) } } }
+                            ?: throw IllegalArgumentException("Invalid dataset object.")
+                } ?: throw IllegalArgumentException("Missing datasets object.")
+                resultWithDatasets(list, result)
+            }
             "getPreferences" -> {
                 result.success(
-                    autofillPreferenceStore.autofillPreferences.toJsonValue()
+                        autofillPreferenceStore.autofillPreferences.toJsonValue()
                 )
             }
             "setPreferences" -> {
@@ -102,6 +114,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             else -> result.notImplemented()
         }
     }
+
     private fun resultWithDataset(call: MethodCall, result: Result) {
         val label = call.argument<String>("label") ?: "Autofill"
         val username = call.argument<String>("username") ?: ""
@@ -109,16 +122,16 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         if (password.isBlank()) {
             logger.warn { "No known password." }
         }
-        resultWithDatasets(listOf(PwDataset(label, username, password)), result)
+        resultWithDataset(PwDataset(label, username, password), result)
     }
 
     private fun resultWithDatasets(pwDatasets: List<PwDataset>, result: Result) {
 
         val structureParcel: AssistStructure? =
-            lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_ASSIST_STRUCTURE)
-                ?: activity?.intent?.extras?.getParcelable(
-                    AutofillManager.EXTRA_ASSIST_STRUCTURE
-                )
+                lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_ASSIST_STRUCTURE)
+                        ?: activity?.intent?.extras?.getParcelable(
+                                AutofillManager.EXTRA_ASSIST_STRUCTURE
+                        )
         if (structureParcel == null) {
             logger.info { "No structure available. (activity: $activity)" }
             result.success(false)
@@ -130,70 +143,72 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val structure = AssistStructureParser(structureParcel)
 
         val autofillIds =
-            (lastIntent ?: activity.intent)?.extras?.getParcelableArrayList<AutofillId>(
-                "autofillIds"
-            )
+                (lastIntent ?: activity.intent)?.extras?.getParcelableArrayList<AutofillId>(
+                        "autofillIds"
+                )
         logger.debug { "structure: $structure /// autofillIds: $autofillIds" }
         logger.info { "packageName: ${context.packageName}" }
 
         val remoteViews = {
             RemoteViewsHelper.viewsWithNoAuth(
-                context.packageName, "Fill Me"
+                    context.packageName, "Fill Me"
             )
         }
 //        structure.fieldIds.values.forEach { it.sortByDescending { it.heuristic.weight } }
 
-        val datasetResponse = FillResponse.Builder()
-            .setAuthentication(
-                structure.autoFillIds.toTypedArray(),
-                null,
-                null
-            )
-            .apply {
-                pwDatasets.forEach { pw ->
-                    addDataset(Dataset.Builder(remoteViews()).apply {
-                        setId("test ${pw.username}")
-                        structure.allNodes.forEach { node ->
-                            if (node.isFocused && node.autofillId != null) {
-                                logger.debug("Setting focus node. ${node.autofillId}")
+        val fillResponseBuilder = FillResponse.Builder()
+                // Pretty sure this is lame. Docs claim that it will even throw an IllegalArgumentException... although it
+                // does not appear to behave as documented. Still, no idea what it can be useful for so commenting out.
+//            .setAuthentication(
+//                structure.autoFillIds.toTypedArray(),
+//                null,
+//                null
+//            )
+                .apply {
+                    pwDatasets.forEach { pw ->
+                        addDataset(Dataset.Builder(remoteViews()).apply {
+                            setId("test ${pw.username}")
+                            structure.allNodes.forEach { node ->
+                                if (node.isFocused && node.autofillId != null) {
+                                    logger.debug("Setting focus node. ${node.autofillId}")
+                                    setValue(
+                                            node.autofillId!!,
+                                            AutofillValue.forText(pw.username),
+                                            RemoteViews(
+                                                    context.packageName,
+                                                    android.R.layout.simple_list_item_1
+                                            ).apply {
+                                                setTextViewText(android.R.id.text1, pw.label + "(focus)")
+                                            })
+
+                                }
+                            }
+                            val filledAutofillIds = mutableSetOf<AutofillId>()
+                            structure.fieldIds.flatMap { entry ->
+                                entry.value.map { entry.key to it }
+                            }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
+                                val isNewAutofillId = filledAutofillIds.add(field.autofillId)
+                                logger.debug("Adding data set at weight ${field.heuristic.weight} for ${type.toString().padStart(10)} for ${field.autofillId} ${field.heuristic.message} ${"Ignored".takeIf { !isNewAutofillId } ?: ""}")
+
+                                if (!isNewAutofillId) {
+                                    return@allIds
+                                }
+
+                                val autoFillValue = if (type == AutofillInputType.Password) {
+                                    pw.password
+                                } else {
+                                    pw.username
+                                }
                                 setValue(
-                                    node.autofillId!!,
-                                    AutofillValue.forText(pw.username),
-                                    RemoteViews(
-                                        context.packageName,
-                                        android.R.layout.simple_list_item_1
-                                    ).apply {
-                                        setTextViewText(android.R.id.text1, pw.label + "(focus)")
-                                    })
-
+                                        field.autofillId,
+                                        AutofillValue.forText(autoFillValue),
+                                        RemoteViews(
+                                                context.packageName,
+                                                android.R.layout.simple_list_item_1
+                                        ).apply {
+                                            setTextViewText(android.R.id.text1, pw.label)
+                                        })
                             }
-                        }
-                        val filledAutofillIds = mutableSetOf<AutofillId>()
-                        structure.fieldIds.flatMap { entry ->
-                            entry.value.map { entry.key to it }
-                        }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
-                            val isNewAutofillId = filledAutofillIds.add(field.autofillId)
-                            logger.debug("Adding data set at weight ${field.heuristic.weight} for ${type.toString().padStart(10)} for ${field.autofillId} ${field.heuristic.message} ${"Ignored".takeIf { !isNewAutofillId } ?: ""}")
-
-                            if (!isNewAutofillId) {
-                                return@allIds
-                            }
-
-                            val autoFillValue = if (type == AutofillInputType.Password) {
-                                pw.password
-                            } else {
-                                pw.username
-                            }
-                            setValue(
-                                field.autofillId,
-                                AutofillValue.forText(autoFillValue),
-                                RemoteViews(
-                                    context.packageName,
-                                    android.R.layout.simple_list_item_1
-                                ).apply {
-                                    setTextViewText(android.R.id.text1, pw.label)
-                                })
-                        }
 //                        structure.fieldIds[AutofillInputType.Email]?.forEach { field ->
 //                            logger.debug("Adding data set for email ${field.autofillId}")
 //                            setValue(
@@ -230,10 +245,134 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 //                                    setTextViewText(android.R.id.text1, pw.label)
 //                                })
 //                        }
-                    }.build())
+                        }
+
+                                .build())
+                    }
+                }
+
+
+        logger.debug { "Trying to fetch package info." }
+        val activityName = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).run {
+            metaData.getString("com.keevault.flutter_autofill.ACTIVITY_NAME")
+        } ?: "com.keevault.keevault.MainActivity"
+        logger.debug("got activity $activityName")
+        val startIntent = getStartIntent(activityName, structure)
+        val intentSender: IntentSender = PendingIntent.getActivity(
+                context,
+                0,
+                startIntent,
+                PendingIntent.FLAG_CANCEL_CURRENT
+        ).intentSender
+
+        fillResponseBuilder.addDataset(
+                Dataset.Builder().apply {
+                    structure.fieldIds.flatMap { entry ->
+                        entry.value.map { entry.key to it }
+                    }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
+
+                        setValue(
+                                field.autofillId,
+                                null,
+                                RemoteViews(
+                                        context.packageName,
+                                        android.R.layout.simple_list_item_1
+                                ).apply {
+                                    setTextViewText(android.R.id.text1, "Choose a different entry")
+                                })
+                    }
+
+                    setAuthentication(intentSender)
+                }
+                        .build()
+        )
+        val fillResponse = fillResponseBuilder.build()
+        val replyIntent = Intent().apply {
+            // Send the data back to the service.
+            putExtra(EXTRA_AUTHENTICATION_RESULT, fillResponse)
+        }
+
+        activity.setResult(RESULT_OK, replyIntent)
+        activity.finish()
+        result.success(true)
+    }
+
+    private fun resultWithDataset(pwDataset: PwDataset, result: Result) {
+
+        val structureParcel: AssistStructure? =
+                lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_ASSIST_STRUCTURE)
+                        ?: activity?.intent?.extras?.getParcelable(
+                                AutofillManager.EXTRA_ASSIST_STRUCTURE
+                        )
+        if (structureParcel == null) {
+            logger.info { "No structure available. (activity: $activity)" }
+            result.success(false)
+            return
+        }
+
+        val activity = requireNotNull(this.activity)
+
+        val structure = AssistStructureParser(structureParcel)
+
+        val autofillIds =
+                (lastIntent ?: activity.intent)?.extras?.getParcelableArrayList<AutofillId>(
+                        "autofillIds"
+                )
+        logger.debug { "structure: $structure /// autofillIds: $autofillIds" }
+        logger.info { "packageName: ${context.packageName}" }
+
+        val remoteViews = {
+            RemoteViewsHelper.viewsWithNoAuth(
+                    context.packageName, "Fill Me"
+            )
+        }
+//        structure.fieldIds.values.forEach { it.sortByDescending { it.heuristic.weight } }
+
+        val datasetResponse = Dataset.Builder(remoteViews()).apply {
+            setId("test ${pwDataset.username}")
+            structure.allNodes.forEach { node ->
+                if (node.isFocused && node.autofillId != null) {
+                    logger.debug("Setting focus node. ${node.autofillId}")
+                    setValue(
+                            node.autofillId!!,
+                            AutofillValue.forText(pwDataset.username),
+                            RemoteViews(
+                                    context.packageName,
+                                    android.R.layout.simple_list_item_1
+                            ).apply {
+                                setTextViewText(android.R.id.text1, pwDataset.label + "(focus)")
+                            })
+
                 }
             }
-            .build()
+            val filledAutofillIds = mutableSetOf<AutofillId>()
+            structure.fieldIds.flatMap { entry ->
+                entry.value.map { entry.key to it }
+            }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
+                val isNewAutofillId = filledAutofillIds.add(field.autofillId)
+                logger.debug("Adding data set at weight ${field.heuristic.weight} for ${type.toString().padStart(10)} for ${field.autofillId} ${field.heuristic.message} ${"Ignored".takeIf { !isNewAutofillId } ?: ""}")
+
+                if (!isNewAutofillId) {
+                    return@allIds
+                }
+
+                val autoFillValue = if (type == AutofillInputType.Password) {
+                    pwDataset.password
+                } else {
+                    pwDataset.username
+                }
+                setValue(
+                        field.autofillId,
+                        AutofillValue.forText(autoFillValue),
+                        RemoteViews(
+                                context.packageName,
+                                android.R.layout.simple_list_item_1
+                        ).apply {
+                            setTextViewText(android.R.id.text1, pwDataset.label)
+                        })
+            }
+        }.build()
+
         val replyIntent = Intent().apply {
             // Send the data back to the service.
             putExtra(EXTRA_AUTHENTICATION_RESULT, datasetResponse)
@@ -244,14 +383,50 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         result.success(true)
     }
 
+    fun getStartIntent(activityName: String, parser: AssistStructureParser): Intent {
+        val startIntent = Intent()
+        // TODO: Figure this out how to do this without hard coding everything..
+        startIntent.setClassName(context, activityName)
+        startIntent.action = Intent.ACTION_RUN
+        //"com.keevault.flutter_autofill_example.MainActivity")
+        //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
+        //                                `package` = applicationContext.packageName
+        //                    logger.debug { "Creating custom intent." }
+        //                }
+        //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startIntent.putExtra("route", "/autofill")
+        startIntent.putExtra("initial_route", "/autofill")
+        parser.packageName.firstOrNull()?.let {
+            startIntent.putExtra(
+                    "autofillPackageName",
+                    it
+            )
+        }
+        if (parser.webDomain.size > 1) {
+            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomain}" }
+        }
+        parser.webDomain
+                .firstOrNull { it.domain.isNotBlank() }
+                ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
+        // We serialize to string, because the Parcelable made some serious problems.
+        // https://stackoverflow.com/a/39478479/109219
+        startIntent.putExtra(
+                AutofillMetadata.EXTRA_NAME,
+                AutofillMetadata(parser.packageName, parser.webDomain).toJsonString()
+        )
+        return startIntent
+    }
+
     override fun onNewIntent(intent: Intent?): Boolean {
         lastIntent = intent
         logger.info {
-            "We got a new intent. $intent (extras: ${intent?.extras?.keySet()?.map {
-                it to intent.extras?.get(
-                    it
-                )
-            }})"
+            "We got a new intent. $intent (extras: ${
+                intent?.extras?.keySet()?.map {
+                    it to intent.extras?.get(
+                            it
+                    )
+                }
+            })"
         }
         return false
     }
@@ -259,8 +434,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         logger.debug(
-            "got activity result for $requestCode" +
-                " (our: $REQUEST_CODE_SET_AUTOFILL_SERVICE) result: $resultCode"
+                "got activity result for $requestCode" +
+                        " (our: $REQUEST_CODE_SET_AUTOFILL_SERVICE) result: $resultCode"
         )
         if (requestCode == REQUEST_CODE_SET_AUTOFILL_SERVICE) {
             requestSetAutofillServiceResult?.let { result ->
