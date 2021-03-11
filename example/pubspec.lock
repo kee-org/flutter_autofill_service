@@ -62,7 +62,7 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_autofill:
+  flutter_autofill_service:
     dependency: "direct dev"
     description:
       path: ".."

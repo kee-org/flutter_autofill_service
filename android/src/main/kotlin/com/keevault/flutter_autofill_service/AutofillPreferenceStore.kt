@@ -1,4 +1,4 @@
-package com.keevault.flutter_autofill
+package com.keevault.flutter_autofill_service
 
 import android.content.*
 import androidx.core.content.edit
@@ -48,7 +48,7 @@ class AutofillPreferenceStore private constructor(private val prefs: SharedPrefe
 
     companion object {
 
-        private const val SHARED_PREFS_NAME = "com.keevault.flutter_autofill.prefs"
+        private const val SHARED_PREFS_NAME = "com.keevault.flutter_autofill_service.prefs"
 
         private val lock = Any()
         private var instance: AutofillPreferenceStore? = null

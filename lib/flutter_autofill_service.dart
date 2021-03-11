@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 
-final _logger = Logger('flutter_autofill');
+final _logger = Logger('flutter_autofill_service');
 
 enum AutofillServiceStatus {
   unsupported,
@@ -45,7 +45,7 @@ class AutofillService {
   AutofillService._();
 
   static const MethodChannel _channel =
-      MethodChannel('com.keevault/flutter_autofill');
+      MethodChannel('com.keevault/flutter_autofill_service');
 
   static final _instance = AutofillService._();
 

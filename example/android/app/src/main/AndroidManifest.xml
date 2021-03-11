@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.keevault.flutter_autofill_example">
+    package="com.keevault.flutter_autofill_service_example">
 
     <application
-        android:label="flutter_autofill_example"
+        android:label="flutter_autofill_service_example"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -34,8 +34,8 @@
             </intent-filter>
         </activity>
 
-        <meta-data android:name="com.keevault.flutter_autofill.ACTIVITY_NAME"
-            android:value="com.keevault.flutter_autofill_example.MainActivity" />
+        <meta-data android:name="com.keevault.flutter_autofill_service.ACTIVITY_NAME"
+            android:value="com.keevault.flutter_autofill_service_example.MainActivity" />
     </application>
 
 </manifest>

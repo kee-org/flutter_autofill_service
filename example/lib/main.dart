@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_autofill/flutter_autofill.dart';
+import 'package:flutter_autofill_service/flutter_autofill_service.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';

@@ -1,3 +1,3 @@
-# flutter_autofill
+# flutter_autofill_service
 
 Integrate Flutter with platform autofill services. Inspired by and incorporating some code from the autofill_service package by hpoul.

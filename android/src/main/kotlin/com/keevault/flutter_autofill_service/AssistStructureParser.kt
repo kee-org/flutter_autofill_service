@@ -1,4 +1,4 @@
-package com.keevault.flutter_autofill
+package com.keevault.flutter_autofill_service
 
 import android.annotation.TargetApi
 import android.app.assist.AssistStructure

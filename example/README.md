@@ -1,6 +1,6 @@
-# flutter_autofill_example
+# flutter_autofill_service_example
 
-Demonstrates how to use the flutter_autofill plugin.
+Demonstrates how to use the flutter_autofill_service plugin.
 
 ## Getting Started
 

@@ -1,4 +1,4 @@
-group 'com.keevault.flutter_autofill'
+group 'com.keevault.flutter_autofill_service'
 version '1.0-SNAPSHOT'
 
 buildscript {

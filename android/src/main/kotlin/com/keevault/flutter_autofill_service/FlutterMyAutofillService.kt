@@ -1,4 +1,4 @@
-package com.keevault.flutter_autofill
+package com.keevault.flutter_autofill_service
 
 import android.annotation.TargetApi
 import android.app.PendingIntent
@@ -36,7 +36,7 @@ class FlutterAutofillService : AutofillService() {
         val self = ComponentName(this, javaClass)
 
         val metaData = packageManager.getServiceInfo(self, PackageManager.GET_META_DATA).metaData
-        metaData.getString("com.keevault.flutter_autofill.unlock_label")?.let {
+        metaData.getString("com.keevault.flutter_autofill_service.unlock_label")?.let {
             unlockLabel = it
         }
         //TODO: Find a way to localise this message and the "pick another" message
@@ -67,7 +67,7 @@ class FlutterAutofillService : AutofillService() {
 
         logger.debug { "Trying to fetch package info." }
         val activityName = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA).run {
-            metaData.getString("com.keevault.flutter_autofill.ACTIVITY_NAME")
+            metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME")
         } ?: "com.keevault.keevault.MainActivity"
         logger.debug("got activity $activityName")
 
@@ -114,7 +114,7 @@ class FlutterAutofillService : AutofillService() {
         // TODO: Figure this out how to do this without hard coding everything..
         startIntent.setClassName(applicationContext, activityName)
         startIntent.action = Intent.ACTION_RUN
-        //"com.keevault.flutter_autofill_example.MainActivity")
+        //"com.keevault.flutter_autofill_service_example.MainActivity")
         //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
         //                                `package` = applicationContext.packageName
         //                    logger.debug { "Creating custom intent." }

@@ -1,4 +1,4 @@
-package com.keevault.flutter_autofill
+package com.keevault.flutter_autofill_service
 
 import android.annotation.SuppressLint
 import android.app.Activity.RESULT_OK
@@ -88,9 +88,11 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 logger.debug { "Got metadata: $metadata" }
                 result.success(metadata?.toJson())
             }
+            // Single dataset - must be sent only in response to an authenticated dataset request ("Use a different entry")
             "resultWithDataset" -> {
                 resultWithDataset(call, result)
             }
+            // List of datasets - user must then select which one they want to be filled
             "resultWithDatasets" -> {
                 val sets = call.argument<List<Map<String, String>>>("datasets");
                 val list = sets?.map { m ->
@@ -254,7 +256,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         logger.debug { "Trying to fetch package info." }
         val activityName = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).run {
-            metaData.getString("com.keevault.flutter_autofill.ACTIVITY_NAME")
+            metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME")
         } ?: "com.keevault.keevault.MainActivity"
         logger.debug("got activity $activityName")
         val startIntent = getStartIntent(activityName, structure)
@@ -278,7 +280,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                         context.packageName,
                                         android.R.layout.simple_list_item_1
                                 ).apply {
-                                    setTextViewText(android.R.id.text1, "Choose a different entry")
+                                    // This gets replaced when user interacts with it so we can't
+                                    // offer this more than once - user will have to refresh the
+                                    // web page or restart the app if they make a mistake.
+                                    setTextViewText(android.R.id.text1, "Use a different entry")
                                 })
                     }
 
@@ -388,14 +393,14 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         // TODO: Figure this out how to do this without hard coding everything..
         startIntent.setClassName(context, activityName)
         startIntent.action = Intent.ACTION_RUN
-        //"com.keevault.flutter_autofill_example.MainActivity")
+        //"com.keevault.flutter_autofill_service_example.MainActivity")
         //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
         //                                `package` = applicationContext.packageName
         //                    logger.debug { "Creating custom intent." }
         //                }
         //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        startIntent.putExtra("route", "/autofill")
-        startIntent.putExtra("initial_route", "/autofill")
+        startIntent.putExtra("route", "/autofill_select")
+        startIntent.putExtra("initial_route", "/autofill_select")
         parser.packageName.firstOrNull()?.let {
             startIntent.putExtra(
                     "autofillPackageName",
@@ -474,7 +479,7 @@ class FlutterAutofillPlugin : FlutterPlugin, ActivityAware {
     private var channel: MethodChannel? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        val channel = MethodChannel(binding.binaryMessenger, "com.keevault/flutter_autofill")
+        val channel = MethodChannel(binding.binaryMessenger, "com.keevault/flutter_autofill_service")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             impl = FlutterAutofillPluginImpl(binding.applicationContext)
             channel.setMethodCallHandler(impl)
