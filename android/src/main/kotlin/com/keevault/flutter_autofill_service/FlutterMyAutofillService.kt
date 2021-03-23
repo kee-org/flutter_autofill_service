@@ -75,9 +75,9 @@ class FlutterAutofillService : AutofillService() {
         //        startIntent.putParcelableArrayListExtra("autofillIds", ArrayList(parser.autoFillIds))
         val intentSender: IntentSender = PendingIntent.getActivity(
             this,
-            0,
+            1230,
             startIntent,
-            PendingIntent.FLAG_CANCEL_CURRENT
+            PendingIntent.FLAG_UPDATE_CURRENT
         ).intentSender
         logger.debug { "startIntent:$startIntent (${startIntent.extras}) - sender: $intentSender" }
 
@@ -113,13 +113,13 @@ class FlutterAutofillService : AutofillService() {
         val startIntent = Intent()
         // TODO: Figure this out how to do this without hard coding everything..
         startIntent.setClassName(applicationContext, activityName)
-        startIntent.action = Intent.ACTION_RUN
+        //startIntent.action = Intent.ACTION_RUN
         //"com.keevault.flutter_autofill_service_example.MainActivity")
         //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
         //                                `package` = applicationContext.packageName
         //                    logger.debug { "Creating custom intent." }
         //                }
-        //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
         startIntent.putExtra("route", "/autofill")
         startIntent.putExtra("initial_route", "/autofill")
         parser.packageName.firstOrNull()?.let {

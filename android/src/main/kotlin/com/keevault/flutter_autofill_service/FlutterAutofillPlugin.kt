@@ -161,11 +161,11 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val fillResponseBuilder = FillResponse.Builder()
                 // Pretty sure this is lame. Docs claim that it will even throw an IllegalArgumentException... although it
                 // does not appear to behave as documented. Still, no idea what it can be useful for so commenting out.
-//            .setAuthentication(
-//                structure.autoFillIds.toTypedArray(),
-//                null,
-//                null
-//            )
+        //    .setAuthentication(
+        //        structure.autoFillIds.toTypedArray(),
+        //        null,
+        //        null
+        //    )
                 .apply {
                     pwDatasets.forEach { pw ->
                         addDataset(Dataset.Builder(remoteViews()).apply {
@@ -262,9 +262,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val startIntent = getStartIntent(activityName, structure)
         val intentSender: IntentSender = PendingIntent.getActivity(
                 context,
-                0,
+                1230,
                 startIntent,
-                PendingIntent.FLAG_CANCEL_CURRENT
+                PendingIntent.FLAG_UPDATE_CURRENT
         ).intentSender
 
         fillResponseBuilder.addDataset(
@@ -388,17 +388,17 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         result.success(true)
     }
 
-    fun getStartIntent(activityName: String, parser: AssistStructureParser): Intent {
+    private fun getStartIntent(activityName: String, parser: AssistStructureParser): Intent {
         val startIntent = Intent()
         // TODO: Figure this out how to do this without hard coding everything..
         startIntent.setClassName(context, activityName)
-        startIntent.action = Intent.ACTION_RUN
+        //startIntent.action = Intent.ACTION_RUN
         //"com.keevault.flutter_autofill_service_example.MainActivity")
         //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
         //                                `package` = applicationContext.packageName
         //                    logger.debug { "Creating custom intent." }
         //                }
-        //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
         startIntent.putExtra("route", "/autofill_select")
         startIntent.putExtra("initial_route", "/autofill_select")
         parser.packageName.firstOrNull()?.let {
