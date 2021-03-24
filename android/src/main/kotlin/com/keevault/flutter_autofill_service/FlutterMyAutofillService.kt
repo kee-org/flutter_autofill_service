@@ -91,8 +91,8 @@ class FlutterAutofillService : AutofillService() {
                 RemoteViewsHelper.viewsWithAuth(packageName, useLabel)
             )
         logger.info { "remoteView for packageName: $packageName -- " +
-            "detected autofill packageName: ${parser.packageName} " +
-            "webDomain: ${parser.webDomain}" +
+            "detected autofill packageNames: ${parser.packageNames} " +
+            "webDomains: ${parser.webDomains}" +
           "autoFillIds: ${autoFillIds.size}" }
 
         val fillResponse = fillResponseBuilder.build()
@@ -102,7 +102,7 @@ class FlutterAutofillService : AutofillService() {
         } catch (e: TransactionTooLargeException) {
             throw RuntimeException(
               "Too many auto fill ids discovered ${autoFillIds.size} for " +
-                "${parser.webDomain},  ${parser.packageName}",
+                "${parser.webDomains},  ${parser.packageNames}",
               e
             )
         }
@@ -122,23 +122,23 @@ class FlutterAutofillService : AutofillService() {
         //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
         startIntent.putExtra("route", "/autofill")
         startIntent.putExtra("initial_route", "/autofill")
-        parser.packageName.firstOrNull()?.let {
+        parser.packageNames.firstOrNull()?.let {
             startIntent.putExtra(
                     "autofillPackageName",
                     it
             )
         }
-        if (parser.webDomain.size > 1) {
-            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomain}" }
+        if (parser.webDomains.size > 1) {
+            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomains}" }
         }
-        parser.webDomain
+        parser.webDomains
                 .firstOrNull { it.domain.isNotBlank() }
                 ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
         // We serialize to string, because the Parcelable made some serious problems.
         // https://stackoverflow.com/a/39478479/109219
         startIntent.putExtra(
                 AutofillMetadata.EXTRA_NAME,
-                AutofillMetadata(parser.packageName, parser.webDomain).toJsonString()
+                AutofillMetadata(parser.packageNames, parser.webDomains).toJsonString()
         )
         return startIntent
     }
