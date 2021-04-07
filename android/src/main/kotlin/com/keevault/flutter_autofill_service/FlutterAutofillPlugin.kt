@@ -10,6 +10,7 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Parcelable
 import android.provider.Settings
 import android.service.autofill.Dataset
 import android.service.autofill.FillResponse
@@ -93,13 +94,18 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 resultWithDataset(call, result)
             }
             // List of datasets - user must then select which one they want to be filled
+            // null indicates we are declining to look for any matches
             "resultWithDatasets" -> {
                 val sets = call.argument<List<Map<String, String>>>("datasets");
                 val list = sets?.map { m ->
                     m["label"]?.let { m["username"]?.let { it1 -> m["password"]?.let { it2 -> PwDataset(it, it1, it2) } } }
                             ?: throw IllegalArgumentException("Invalid dataset object.")
                 } ?: throw IllegalArgumentException("Missing datasets object.")
-                resultWithDatasets(list, result)
+                if (list == null) {
+                    resultWithNullDataset(result)
+                } else {
+                    resultWithDatasets(list, result)
+                }
             }
             "getPreferences" -> {
                 result.success(
@@ -125,6 +131,21 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             logger.warn { "No known password." }
         }
         resultWithDataset(PwDataset(label, username, password), result)
+    }
+
+    private fun resultWithNullDataset(result: Result) {
+        val activity = requireNotNull(this.activity)
+        val replyIntent = Intent();
+
+        // Official docs say we must return null but the API does not allow this. Thus I am
+        // guessing that I must omit the entire EXTRA_AUTHENTICATION_RESULT data item
+        //.apply {
+           //putExtra<Parcelable>(EXTRA_AUTHENTICATION_RESULT, null as Parcelable)
+        //}
+
+        activity.setResult(RESULT_OK, replyIntent)
+        activity.finish()
+        result.success(true)
     }
 
     private fun resultWithDatasets(pwDatasets: List<PwDataset>, result: Result) {

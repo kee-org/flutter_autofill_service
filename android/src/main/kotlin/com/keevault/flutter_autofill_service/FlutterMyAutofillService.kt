@@ -58,8 +58,8 @@ class FlutterAutofillService : AutofillService() {
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty()){
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
             logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}"}
-            if(!autofillPreferenceStore.autofillPreferences.enableDebug) {
-                callback.onSuccess(null)
+            if(!autofillPreferenceStore.autofillPreferences.enableDebug) { //TODO: What is this debug stuff all about? just return null every time surely?!
+                callback.onSuccess(null) //TODO: also do this if packageid or web domain are blocked (before we get to the dart code)
                 return
             }
             useLabel = "Debug: No password fields detected ($detectedFields total)."

@@ -105,10 +105,10 @@ class AutofillService {
         false;
   }
 
-  Future<bool> resultWithDatasets(List<PwDataset> datasets) async {
+  Future<bool> resultWithDatasets(List<PwDataset>? datasets) async {
     return (await _channel.invokeMethod<bool>('resultWithDatasets', {
           'datasets': datasets
-              .map((d) => <String, dynamic>{
+              ?.map((d) => <String, dynamic>{
                     'label': d.label,
                     'username': d.username,
                     'password': d.password
