@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:io';
-
+import 'package:universal_platform/universal_platform.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 
@@ -50,7 +49,7 @@ class AutofillService {
   static final _instance = AutofillService._();
 
   Future<bool> get hasAutofillServicesSupport async {
-    if (!Platform.isAndroid) {
+    if (!UniversalPlatform.isAndroid) {
       return false;
     }
     final result =
@@ -75,7 +74,7 @@ class AutofillService {
   }
 
   Future<AutofillServiceStatus> status() async {
-    if (!Platform.isAndroid) {
+    if (!UniversalPlatform.isAndroid) {
       return AutofillServiceStatus.unsupported;
     }
     final enabled =
