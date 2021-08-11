@@ -100,7 +100,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 val list = sets?.map { m ->
                     m["label"]?.let { m["username"]?.let { it1 -> m["password"]?.let { it2 -> PwDataset(it, it1, it2) } } }
                             ?: throw IllegalArgumentException("Invalid dataset object.")
-                } ?: throw IllegalArgumentException("Missing datasets object.")
+                }
                 if (list == null) {
                     resultWithNullDataset(result)
                 } else {
