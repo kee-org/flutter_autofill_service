@@ -55,10 +55,13 @@ class FlutterAutofillService : AutofillService() {
         val parser = AssistStructureParser(context.structure)
 
         var useLabel = unlockLabel
+
+        // Do not launch Kee Vault if no password fields are found, unless a temporary flag is
+        // enabled to aid debugging why no such field was detected.
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty()){
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
             logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}"}
-            if(!autofillPreferenceStore.autofillPreferences.enableDebug) { //TODO: What is this debug stuff all about? just return null every time surely?!
+            if(!autofillPreferenceStore.autofillPreferences.enableDebug) {
                 callback.onSuccess(null) //TODO: also do this if packageid or web domain are blocked (before we get to the dart code)
                 return
             }
@@ -122,18 +125,7 @@ class FlutterAutofillService : AutofillService() {
         //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
         startIntent.putExtra("route", "/autofill")
         startIntent.putExtra("initial_route", "/autofill")
-        parser.packageNames.firstOrNull()?.let {
-            startIntent.putExtra(
-                    "autofillPackageName",
-                    it
-            )
-        }
-        if (parser.webDomains.size > 1) {
-            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomains}" }
-        }
-        parser.webDomains
-                .firstOrNull { it.domain.isNotBlank() }
-                ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
+        
         // We serialize to string, because the Parcelable made some serious problems.
         // https://stackoverflow.com/a/39478479/109219
         startIntent.putExtra(

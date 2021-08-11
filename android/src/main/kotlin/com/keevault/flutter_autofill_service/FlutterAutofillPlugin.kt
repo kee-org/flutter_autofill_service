@@ -422,18 +422,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
         startIntent.putExtra("route", "/autofill_select")
         startIntent.putExtra("initial_route", "/autofill_select")
-        parser.packageNames.firstOrNull()?.let {
-            startIntent.putExtra(
-                    "autofillPackageName",
-                    it
-            )
-        }
-        if (parser.webDomains.size > 1) {
-            logger.warn { "Found multiple autofillWebDomain: ${parser.webDomains}" }
-        }
-        parser.webDomains
-                .firstOrNull { it.domain.isNotBlank() }
-                ?.let { startIntent.putExtra("autofillWebDomain", it.domain) }
+        
         // We serialize to string, because the Parcelable made some serious problems.
         // https://stackoverflow.com/a/39478479/109219
         startIntent.putExtra(
