@@ -214,16 +214,18 @@ class AssistStructureParser(structure: AssistStructure) {
         viewNode.idPackage?.let { idPackage ->
             packageNames.add(idPackage)
         }
-        viewNode.webDomain?.let { myWebDomain ->
-            webDomains.add(
-                    WebDomain(
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                viewNode.webScheme
-                            } else {
-                                null
-                            }, myWebDomain
-                    )
-            )
+        viewNode.webDomain?.let { webDomain ->
+            if (webDomain.isNotEmpty()) {
+                webDomains.add(
+                        WebDomain(
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                    viewNode.webScheme
+                                } else {
+                                    null
+                                }, webDomain
+                        )
+                )
+            }
         }
         viewNode.autofillId?.let { autofillId ->
             AutofillInputType.values().forEach { type ->
