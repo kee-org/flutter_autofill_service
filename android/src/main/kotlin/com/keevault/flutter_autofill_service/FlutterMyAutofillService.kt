@@ -21,6 +21,13 @@ private val logger = KotlinLogging.logger {}
 @RequiresApi(api = Build.VERSION_CODES.O)
 class FlutterAutofillService : AutofillService() {
 
+    private val excludedPackages = listOf(
+        "com.keevault.keevault",
+        "android",
+        "com.android.settings",
+        "com.oneplus.applocker",
+    )
+
     private lateinit var autofillPreferenceStore: AutofillPreferenceStore
     private var unlockLabel = "Autofill"
 
@@ -62,10 +69,15 @@ class FlutterAutofillService : AutofillService() {
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
             logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}"}
             if(!autofillPreferenceStore.autofillPreferences.enableDebug) {
-                callback.onSuccess(null) //TODO: also do this if packageid or web domain are blocked (before we get to the dart code)
+                callback.onSuccess(null)
                 return
             }
             useLabel = "Debug: No password fields detected ($detectedFields total)."
+        }
+
+        if(parser.packageNames.any {it in excludedPackages} ) {
+            callback.onSuccess(null)
+            return
         }
 
         logger.debug { "Trying to fetch package info." }
