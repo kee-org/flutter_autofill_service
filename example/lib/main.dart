@@ -11,20 +11,35 @@ void main() {
   Logger.root.level = Level.ALL;
   PrintAppender().attachToLogger(Logger.root);
   _logger.info('Initialized logger.');
-  runApp(MyApp());
+  runApp(const MyApp(false));
+}
+
+void autofillEntryPoint() {
+  Logger.root.level = Level.ALL;
+  PrintAppender().attachToLogger(Logger.root);
+  _logger.info('Initialized logger.');
+  runApp(const MyApp(true));
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp(this.launchedByAutofillService);
+  final bool launchedByAutofillService;
+
   @override
   _MyAppState createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _hasEnabledAutofillServices;
+  AutofillMetadata? _autofillMetadata;
+  bool? _fillRequestedAutomatic;
+  bool? _fillRequestedInteractive;
+  bool? _saveRequested;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance!.addObserver(this);
     _updateStatus();
   }
 
@@ -32,7 +47,26 @@ class _MyAppState extends State<MyApp> {
   Future<void> _updateStatus() async {
     _hasEnabledAutofillServices =
         await AutofillService().hasEnabledAutofillServices;
+    _autofillMetadata = await AutofillService().getAutofillMetadata();
+    _saveRequested = _autofillMetadata?.saveInfo != null;
+    _fillRequestedAutomatic = await AutofillService().fillRequestedAutomatic;
+    _fillRequestedInteractive =
+        await AutofillService().fillRequestedInteractive;
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance!.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      await _updateStatus();
+    }
   }
 
   @override
@@ -48,9 +82,15 @@ class _MyAppState extends State<MyApp> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
+              Text(widget.launchedByAutofillService
+                  ? 'Autofill launch'
+                  : 'Standard launch'),
               Text(
-                  'hasEnabledAutofillServices: $_hasEnabledAutofillServices\n'),
-              RaisedButton(
+                  '\nhasEnabledAutofillServices: $_hasEnabledAutofillServices\n'),
+              Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
+              Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
+              Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
+              ElevatedButton(
                 child: const Text('requestSetAutofillService'),
                 onPressed: () async {
                   _logger.fine('Starting request.');
@@ -60,19 +100,29 @@ class _MyAppState extends State<MyApp> {
                   await _updateStatus();
                 },
               ),
-              RaisedButton(
-                child: const Text('finish'),
+              ElevatedButton(
+                child: const Text('Simulate automatic autofill result'),
                 onPressed: () async {
                   _logger.fine('Starting request.');
                   final response = await AutofillService().resultWithDatasets([
                     PwDataset(
-                      label: 'this is the label 1',
+                      label: 'user and pass 1',
                       username: 'dummyUsername1',
                       password: 'dpwd1',
                     ),
                     PwDataset(
-                      label: 'this is the label 2',
+                      label: 'user and pass 2',
                       username: 'dummyUsername2',
+                      password: 'dpwd2',
+                    ),
+                    PwDataset(
+                      label: 'user only',
+                      username: 'dummyUsername2',
+                      password: '',
+                    ),
+                    PwDataset(
+                      label: 'pass only',
+                      username: '',
                       password: 'dpwd2',
                     ),
                   ]);
@@ -80,8 +130,8 @@ class _MyAppState extends State<MyApp> {
                   await _updateStatus();
                 },
               ),
-              RaisedButton(
-                child: const Text('finish other'),
+              ElevatedButton(
+                child: const Text('Simulate interactive autofill result'),
                 onPressed: () async {
                   _logger.fine('Starting request.');
                   final response = await AutofillService().resultWithDataset(
@@ -92,6 +142,18 @@ class _MyAppState extends State<MyApp> {
                   _logger.fine('resultWithDatasets $response');
                   await _updateStatus();
                 },
+              ),
+              Visibility(
+                visible: _saveRequested ?? false,
+                child: ElevatedButton(
+                  child: const Text('Simulate save operation'),
+                  onPressed: () async {
+                    _logger.fine('TODO: save the supplied data now.');
+                    await AutofillService().onSaveComplete();
+                    _logger.fine('save completed');
+                    await _updateStatus();
+                  },
+                ),
               ),
             ],
           ),

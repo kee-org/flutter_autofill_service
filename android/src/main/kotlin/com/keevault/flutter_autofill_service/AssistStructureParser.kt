@@ -8,6 +8,7 @@ import android.view.autofill.AutofillId
 import androidx.annotation.RequiresApi
 import com.squareup.moshi.JsonClass
 import mu.KotlinLogging
+import android.app.assist.AssistStructure.ViewNode
 
 private val logger = KotlinLogging.logger {}
 
@@ -201,7 +202,6 @@ class AssistStructureParser(structure: AssistStructure) {
         logger.debug { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
 //        logger.debug { "$depth ` We got node: ${viewNode.toStringReflective()}" }
 
-        viewNode.autofillId?.let { autoFillIds.add(it) }
         if (viewNode.autofillHints?.isNotEmpty() == true) {
             // If the client app provides autofill hints, you can obtain them using:
             logger.debug { "$depth     autofillHints: ${viewNode.autofillHints?.contentToString()}" }
@@ -228,9 +228,13 @@ class AssistStructureParser(structure: AssistStructure) {
             }
         }
         viewNode.autofillId?.let { autofillId ->
+            autoFillIds.add(autofillId)
             AutofillInputType.values().forEach { type ->
                 fieldIds.getOrPut(type) { mutableListOf() }.addAll(
                         type.heuristics
+                                //TODO: Maybe we can filter here to remove newUsername/newPassword?
+                                // But probably it will prevent the save feature from working.
+                                //.filter { !(viewNode.autofillHints?.contains("newPassword") ?: false) }
                                 .filter { viewNode.autofillType != View.AUTOFILL_TYPE_NONE }
                                 .filter { it.predicate(viewNode, viewNode) }
                                 .map { MatchedField(it, autofillId) }
@@ -246,6 +250,10 @@ class AssistStructureParser(structure: AssistStructure) {
         children?.forEach { childNode: AssistStructure.ViewNode ->
             traverseNode(childNode, "    ")
         }
+    }
+
+    fun findNodeByAutofillId(id: AutofillId?): ViewNode? {
+        return allNodes.firstOrNull { it.autofillId == id }
     }
 
     override fun toString(): String {

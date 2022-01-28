@@ -10,7 +10,7 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Parcelable
+import android.os.Bundle
 import android.provider.Settings
 import android.service.autofill.Dataset
 import android.service.autofill.FillResponse
@@ -18,8 +18,10 @@ import android.view.autofill.AutofillId
 import android.view.autofill.AutofillManager
 import android.view.autofill.AutofillManager.EXTRA_AUTHENTICATION_RESULT
 import android.view.autofill.AutofillValue
+import android.view.inputmethod.InlineSuggestionsRequest
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
+import com.keevault.flutter_autofill_service.IntentHelpers.getStartIntent
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -29,6 +31,8 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import mu.KotlinLogging
+import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
+
 
 private val logger = KotlinLogging.logger {}
 
@@ -54,10 +58,11 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     }
     private val autofillPreferenceStore by lazy { AutofillPreferenceStore.getInstance(context) }
     private var requestSetAutofillServiceResult: Result? = null
-    private var lastIntent: Intent? = null
 
     private var activityBinding: ActivityPluginBinding? = null
     private val activity get() = activityBinding?.activity
+    private var lastIntent: Intent? = null
+        get() = field ?: activity?.intent
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         logger.debug { "got autofillPreferences: ${autofillPreferenceStore.autofillPreferences}" }
@@ -83,11 +88,23 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             }
             // method available while we are handling an autofill request.
             "getAutofillMetadata" -> {
-                val metadata = activity?.intent?.getStringExtra(
+                val metadata = lastIntent?.getStringExtra(
                         AutofillMetadata.EXTRA_NAME
                 )?.let(AutofillMetadata.Companion::fromJsonString)
                 logger.debug { "Got metadata: $metadata" }
                 result.success(metadata?.toJson())
+            }
+            "fillRequestedAutomatic" -> {
+                val mode = lastIntent?.getStringExtra(
+                        "autofill_mode"
+                )
+                result.success(mode == "/autofill")
+            }
+            "fillRequestedInteractive" -> {
+                val mode = lastIntent?.getStringExtra(
+                        "autofill_mode"
+                )
+                result.success(mode == "/autofill_select")
             }
             // Single dataset - must be sent only in response to an authenticated dataset request ("Use a different entry")
             "resultWithDataset" -> {
@@ -119,6 +136,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 autofillPreferenceStore.autofillPreferences = prefs
                 result.success(true)
             }
+            "onSaveComplete" -> {
+                //TODO: Perhaps clearing the lastIntent is sensible at this stage? Might simplify consumer's code for checking if a save request has already been handled.
+                activity?.moveTaskToBack(true)
+            }
             else -> result.notImplemented()
         }
     }
@@ -140,7 +161,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         // Official docs say we must return null but the API does not allow this. Thus I am
         // guessing that I must omit the entire EXTRA_AUTHENTICATION_RESULT data item
         //.apply {
-           //putExtra<Parcelable>(EXTRA_AUTHENTICATION_RESULT, null as Parcelable)
+        //putExtra<Parcelable>(EXTRA_AUTHENTICATION_RESULT, null as Parcelable)
         //}
 
         activity.setResult(RESULT_OK, replyIntent)
@@ -155,6 +176,34 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         ?: activity?.intent?.extras?.getParcelable(
                                 AutofillManager.EXTRA_ASSIST_STRUCTURE
                         )
+
+        val clientState: Bundle =
+                lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_CLIENT_STATE)
+                        ?: activity?.intent?.extras?.getParcelable(
+                                AutofillManager.EXTRA_CLIENT_STATE
+                        ) ?: Bundle()
+
+        val inlineRequest: InlineSuggestionsRequest? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+
+            lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST)
+                    ?: activity?.intent?.extras?.getParcelable(
+                            AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST
+                    )
+        } else {
+            null
+        }
+
+        val maxInlineSuggestionCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            inlineRequest?.maxSuggestionCount ?: 0
+        } else 0
+
+        //TODO: Stop hardcoding this if we find a way and desire to support Android 11+ IME autofill
+        val respondInline = false
+        // Ignore IMEs that only allow one item because we require at least two
+//        val respondInline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            maxInlineSuggestionCount >= 2
+//        } else false
+
         if (structureParcel == null) {
             logger.info { "No structure available. (activity: $activity)" }
             result.success(false)
@@ -162,15 +211,18 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
 
         val activity = requireNotNull(this.activity)
-
         val structure = AssistStructureParser(structureParcel)
 
         val autofillIds =
-                (lastIntent ?: activity.intent)?.extras?.getParcelableArrayList<AutofillId>(
+                lastIntent?.extras?.getParcelableArrayList<AutofillId>(
                         "autofillIds"
                 )
         logger.debug { "structure: $structure /// autofillIds: $autofillIds" }
         logger.info { "packageName: ${context.packageName}" }
+
+        var autoFillIdPasswordMatched: AutofillId? = null
+        var autoFillIdUsernameMatched: AutofillId? = null
+        val (autoFillIdPasswordGuessed, autoFillIdUsernameGuessed) = SaveHelper.guessAutofillIdsForSave(structure, autofillIds)
 
         val remoteViews = {
             RemoteViewsHelper.viewsWithNoAuth(
@@ -182,28 +234,47 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val fillResponseBuilder = FillResponse.Builder()
                 // Pretty sure this is lame. Docs claim that it will even throw an IllegalArgumentException... although it
                 // does not appear to behave as documented. Still, no idea what it can be useful for so commenting out.
-        //    .setAuthentication(
-        //        structure.autoFillIds.toTypedArray(),
-        //        null,
-        //        null
-        //    )
+                //    .setAuthentication(
+                //        structure.autoFillIds.toTypedArray(),
+                //        null,
+                //        null
+                //    )
                 .apply {
-                    pwDatasets.forEach { pw ->
+                    pwDatasets.take(if (respondInline) maxInlineSuggestionCount - 1 else 10).forEachIndexed { i, pw ->
                         addDataset(Dataset.Builder(remoteViews()).apply {
                             setId("test ${pw.username}")
                             structure.allNodes.forEach { node ->
                                 if (node.isFocused && node.autofillId != null) {
                                     logger.debug("Setting focus node. ${node.autofillId}")
-                                    setValue(
-                                            node.autofillId!!,
-                                            AutofillValue.forText(pw.username),
-                                            RemoteViews(
-                                                    context.packageName,
-                                                    android.R.layout.simple_list_item_1
-                                            ).apply {
-                                                setTextViewText(android.R.id.text1, pw.label + "(focus)")
-                                            })
-
+                                    val nonInlineResponse = RemoteViews(
+                                            context.packageName,
+                                            android.R.layout.simple_list_item_1
+                                    ).apply {
+                                        setTextViewText(android.R.id.text1, pw.label + " (focussed)")
+                                    }
+                                    val autoFillValue = AutofillValue.forText(pw.username)
+                                    var wasSetInline = false
+                                    if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(pw.username,
+                                                inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
+                                                        i) { inlineRequest.inlinePresentationSpecs.last() },
+                                                null, context)
+                                        if (inlineResponse != null) {
+                                            setValue(
+                                                    node.autofillId!!,
+                                                    autoFillValue,
+                                                    nonInlineResponse,
+                                                    inlineResponse
+                                            )
+                                            wasSetInline = true
+                                        }
+                                    }
+                                    if (!wasSetInline) {
+                                        setValue(
+                                                node.autofillId!!,
+                                                autoFillValue,
+                                                nonInlineResponse)
+                                    }
                                 }
                             }
                             val filledAutofillIds = mutableSetOf<AutofillId>()
@@ -211,10 +282,17 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 entry.value.map { entry.key to it }
                             }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
                                 val isNewAutofillId = filledAutofillIds.add(field.autofillId)
-                                logger.debug("Adding data set at weight ${field.heuristic.weight} for ${type.toString().padStart(10)} for ${field.autofillId} ${field.heuristic.message} ${"Ignored".takeIf { !isNewAutofillId } ?: ""}")
+                                logger.debug("Adding data set at weight ${field.heuristic.weight} for ${type.toString().padStart(10)} for ${field.autofillId} '${field.heuristic.message}' ${"Ignored".takeIf { !isNewAutofillId } ?: ""}")
 
                                 if (!isNewAutofillId) {
                                     return@allIds
+                                }
+
+                                // We may select different autofillIDs for each dataset (although unlikely) but for save purposes, Android only allows us to select one set of autofillIDs. We pick the first one that contains any match. Again, there is a small chance this will differ from the set we select when we have no data available but there aren't likely to be many situations where that actually happens.
+                                if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                                    autoFillIdPasswordMatched = field.autofillId
+                                } else if (autoFillIdUsernameMatched != null && type != AutofillInputType.Password) {
+                                    autoFillIdUsernameMatched = field.autofillId
                                 }
 
                                 val autoFillValue = if (type == AutofillInputType.Password) {
@@ -222,65 +300,46 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 } else {
                                     pw.username
                                 }
-                                setValue(
-                                        field.autofillId,
-                                        AutofillValue.forText(autoFillValue),
-                                        RemoteViews(
-                                                context.packageName,
-                                                android.R.layout.simple_list_item_1
-                                        ).apply {
-                                            setTextViewText(android.R.id.text1, pw.label)
-                                        })
+                                val nonInlineResponse = RemoteViews(
+                                        context.packageName,
+                                        android.R.layout.simple_list_item_1
+                                ).apply {
+                                    setTextViewText(android.R.id.text1, pw.label)
+                                }
+                                var wasSetInline = false
+                                if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(autoFillValue,
+                                            inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
+                                                    i) { inlineRequest.inlinePresentationSpecs.last() },
+                                            null, context)
+                                    if (inlineResponse != null) {
+                                        setValue(
+                                                field.autofillId,
+                                                AutofillValue.forText(autoFillValue),
+                                                nonInlineResponse,
+                                                inlineResponse
+                                        )
+                                        wasSetInline = true
+                                    }
+                                }
+                                if (!wasSetInline) {
+                                    setValue(
+                                            field.autofillId,
+                                            AutofillValue.forText(autoFillValue),
+                                            nonInlineResponse)
+                                }
                             }
-//                        structure.fieldIds[AutofillInputType.Email]?.forEach { field ->
-//                            logger.debug("Adding data set for email ${field.autofillId}")
-//                            setValue(
-//                                field.autofillId,
-//                                AutofillValue.forText(pw.username),
-//                                RemoteViews(
-//                                    registrar.context().packageName,
-//                                    android.R.layout.simple_list_item_1
-//                                ).apply {
-//                                    setTextViewText(android.R.id.text1, pw.label)
-//                                })
-//                        }
-//                        structure.fieldIds[AutofillInputType.Password]?.forEach { field ->
-//                            logger.debug("Adding data set for password ${field.autofillId}")
-//                            setValue(
-//                                field.autofillId,
-//                                AutofillValue.forText(pw.password),
-//                                RemoteViews(
-//                                    registrar.context().packageName,
-//                                    android.R.layout.simple_list_item_1
-//                                ).apply {
-//                                    setTextViewText(android.R.id.text1, pw.label)
-//                                })
-//                        }
-//                        structure.fieldIds[AutofillInputType.UserName]?.forEach { field ->
-//                            logger.debug("Adding data set for username ${field.autofillId}")
-//                            setValue(
-//                                field.autofillId,
-//                                AutofillValue.forText(pw.username),
-//                                RemoteViews(
-//                                    registrar.context().packageName,
-//                                    android.R.layout.simple_list_item_1
-//                                ).apply {
-//                                    setTextViewText(android.R.id.text1, pw.label)
-//                                })
-//                        }
                         }
-
                                 .build())
                     }
                 }
 
-
         logger.debug { "Trying to fetch package info." }
         val activityName = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).run {
             metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME")
-        } ?: "com.keevault.keevault.MainActivity"
+        } ?: "com.keevault.flutter_autofill_service_example.AutofillActivity"
         logger.debug("got activity $activityName")
-        val startIntent = getStartIntent(activityName, structure)
+        val startIntent = getStartIntent(activityName, structure.packageNames, structure.webDomains, context, "/autofill_select", null)
         val intentSender: IntentSender = PendingIntent.getActivity(
                 context,
                 1230,
@@ -293,25 +352,46 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                     structure.fieldIds.flatMap { entry ->
                         entry.value.map { entry.key to it }
                     }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
-
-                        setValue(
-                                field.autofillId,
-                                null,
-                                RemoteViews(
-                                        context.packageName,
-                                        android.R.layout.simple_list_item_1
-                                ).apply {
-                                    // This gets replaced when user interacts with it so we can't
-                                    // offer this more than once - user will have to refresh the
-                                    // web page or restart the app if they make a mistake.
-                                    setTextViewText(android.R.id.text1, "Use a different entry")
-                                })
+                        val nonInlineResponse = RemoteViews(
+                                context.packageName,
+                                android.R.layout.simple_list_item_1
+                        ).apply {
+                            // This gets replaced when user interacts with it so we can't
+                            // offer this more than once - user will have to refresh the
+                            // web page or restart the app if they make a mistake.
+                            setTextViewText(android.R.id.text1, "Use a different entry")
+                        }
+                        var wasSetInline = false
+                        if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            val inlineResponse = InlinePresentationHelper.viewsWithNoAuth("Use a different entry",
+                                    inlineRequest!!.inlinePresentationSpecs.last(),
+                                    null, context)
+                            if (inlineResponse != null) {
+                                setValue(
+                                        field.autofillId,
+                                        null,
+                                        nonInlineResponse,
+                                        inlineResponse
+                                )
+                                wasSetInline = true
+                            }
+                        }
+                        if (!wasSetInline) {
+                            setValue(
+                                    field.autofillId,
+                                    null,
+                                    nonInlineResponse
+                            )
+                        }
                     }
 
                     setAuthentication(intentSender)
-                }
-                        .build()
+                }.build()
         )
+        val saveInfo = createSaveInfo(clientState, autoFillIdUsernameGuessed, autoFillIdPasswordGuessed, autoFillIdUsernameMatched, autoFillIdPasswordMatched)
+
+        fillResponseBuilder.setClientState(clientState)
+        saveInfo?.let {fillResponseBuilder.setSaveInfo(it)}
         val fillResponse = fillResponseBuilder.build()
         val replyIntent = Intent().apply {
             // Send the data back to the service.
@@ -327,9 +407,6 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         val structureParcel: AssistStructure? =
                 lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_ASSIST_STRUCTURE)
-                        ?: activity?.intent?.extras?.getParcelable(
-                                AutofillManager.EXTRA_ASSIST_STRUCTURE
-                        )
         if (structureParcel == null) {
             logger.info { "No structure available. (activity: $activity)" }
             result.success(false)
@@ -341,7 +418,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val structure = AssistStructureParser(structureParcel)
 
         val autofillIds =
-                (lastIntent ?: activity.intent)?.extras?.getParcelableArrayList<AutofillId>(
+                lastIntent?.extras?.getParcelableArrayList<AutofillId>(
                         "autofillIds"
                 )
         logger.debug { "structure: $structure /// autofillIds: $autofillIds" }
@@ -409,28 +486,6 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         result.success(true)
     }
 
-    private fun getStartIntent(activityName: String, parser: AssistStructureParser): Intent {
-        val startIntent = Intent()
-        // TODO: Figure this out how to do this without hard coding everything..
-        startIntent.setClassName(context, activityName)
-        //startIntent.action = Intent.ACTION_RUN
-        //"com.keevault.flutter_autofill_service_example.MainActivity")
-        //        val startIntent = Intent(Intent.ACTION_MAIN).apply {
-        //                                `package` = applicationContext.packageName
-        //                    logger.debug { "Creating custom intent." }
-        //                }
-        //startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-        startIntent.putExtra("route", "/autofill_select")
-        startIntent.putExtra("initial_route", "/autofill_select")
-        
-        // We serialize to string, because the Parcelable made some serious problems.
-        // https://stackoverflow.com/a/39478479/109219
-        startIntent.putExtra(
-                AutofillMetadata.EXTRA_NAME,
-                AutofillMetadata(parser.packageNames, parser.webDomains).toJsonString()
-        )
-        return startIntent
-    }
 
     override fun onNewIntent(intent: Intent?): Boolean {
         lastIntent = intent
