@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <autofill-service xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools" tools:targetApi="p">
+    xmlns:tools="http://schemas.android.com/tools" tools:targetApi="p"
+    android:supportsInlineSuggestions="true">
   <compatibility-package
     android:name="acr.browser.lightning"
     android:maxLongVersionCode="10000000000"/>
@@ -192,7 +193,7 @@
     android:maxLongVersionCode="2015836711"/>
   <compatibility-package
     android:name="org.mozilla.firefox_beta"
-    android:maxLongVersionCode="2015849447"/>
+    android:maxLongVersionCode="2015849447"/> <!--2015844523 ? -->
   <compatibility-package
     android:name="org.mozilla.reference.browser"
     android:maxLongVersionCode="10000000000"/>

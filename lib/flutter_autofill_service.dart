@@ -62,6 +62,17 @@ class AutofillService {
         true;
   }
 
+  Future<bool> get fillRequestedAutomatic async {
+    return (await _channel.invokeMethod<bool>('fillRequestedAutomatic')) ==
+        true;
+  }
+
+  Future<bool> get fillRequestedInteractive async {
+    return (await _channel.invokeMethod<bool>('fillRequestedInteractive')) ==
+        true;
+  }
+
+//TODO: Change to getter for consistency with other data access points above?
   Future<AutofillMetadata?> getAutofillMetadata() async {
     final result = await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getAutofillMetadata');
@@ -134,51 +145,86 @@ class AutofillService {
     await _channel.invokeMethod<void>(
         'setPreferences', {'preferences': preferences.toJson()});
   }
+
+  Future<void> onSaveComplete() async {
+    return (await _channel.invokeMethod<void>('onSaveComplete'));
+  }
 }
 
 class AutofillMetadata {
-  AutofillMetadata({required this.packageNames, required this.webDomains});
-  factory AutofillMetadata.fromJson(Map<dynamic, dynamic> json) =>
-      AutofillMetadata(
-        packageNames: (json['packageNames'] as Iterable)
-            .map((dynamic e) => e as String)
-            .toSet(),
-        webDomains: ((json['webDomains'] as Iterable?)
-                ?.map((dynamic e) =>
-                    AutofillWebDomain.fromJson(e as Map<dynamic, dynamic>))
-                .toSet()) ??
-            {},
-      );
+  AutofillMetadata({
+    required this.packageNames,
+    required this.webDomains,
+    required this.saveInfo,
+  });
+  factory AutofillMetadata.fromJson(Map<dynamic, dynamic> json) {
+    final saveInfoJson = json['saveInfo'] as Map<dynamic, dynamic>?;
+    return AutofillMetadata(
+      packageNames: (json['packageNames'] as Iterable)
+          .map((dynamic e) => e as String)
+          .toSet(),
+      webDomains: ((json['webDomains'] as Iterable?)
+              ?.map((dynamic e) =>
+                  AutofillWebDomain.fromJson(e as Map<dynamic, dynamic>))
+              .toSet()) ??
+          {},
+      saveInfo:
+          saveInfoJson != null ? SaveInfoMetadata.fromJson(saveInfoJson) : null,
+    );
+  }
 
   final Set<String> packageNames;
   final Set<AutofillWebDomain> webDomains;
+  final SaveInfoMetadata? saveInfo;
+
+  @override
+  String toString() => toJson().toString();
+
+  Map<String, Object?> toJson() => {
+        'packageNames': packageNames,
+        'webDomains': webDomains.map((e) => e.toJson()),
+        'saveInfo': saveInfo
+      };
+}
+
+class SaveInfoMetadata {
+  SaveInfoMetadata({this.username, this.password});
+
+  factory SaveInfoMetadata.fromJson(Map<dynamic, dynamic> json) =>
+      SaveInfoMetadata(
+        username: json['username'] as String?,
+        password: json['password'] as String?,
+      );
+
+  final String? username;
+  final String? password;
 
   @override
   String toString() => toJson().toString();
 
   Map<String, Object> toJson() => {
-        'packageNames': packageNames,
-        'webDomains': webDomains.map((e) => e.toJson()),
+        if (username != null) 'username': username!,
+        if (password != null) 'password': password!,
       };
 }
 
 class AutofillWebDomain {
-  AutofillWebDomain({required this.scheme, required this.domain});
+  AutofillWebDomain({this.scheme, required this.domain});
 
   factory AutofillWebDomain.fromJson(Map<dynamic, dynamic> json) =>
       AutofillWebDomain(
-        scheme: json['scheme'] as String,
+        scheme: json['scheme'] as String?,
         domain: json['domain'] as String,
       );
 
-  final String scheme;
+  final String? scheme;
   final String domain;
 
   @override
   String toString() => toJson().toString();
 
   Map<String, Object> toJson() => {
-        'scheme': scheme,
+        if (scheme != null) 'scheme': scheme!,
         'domain': domain,
       };
 }

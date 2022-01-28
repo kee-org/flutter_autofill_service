@@ -57,7 +57,6 @@ class DummyTestActivity : FragmentActivity() {
 
         val startIntent = Intent(applicationContext, DummyTestActivity::class.java)
 //        startIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-//        startIntent.putExtra("route", "/autofill")
         startIntent.addCategory("abc")
 //        startIntent.putParcelableArrayListExtra("autofillIds", ArrayList(parser.autoFillIds))
         val intentSender: IntentSender = PendingIntent.getActivity(
