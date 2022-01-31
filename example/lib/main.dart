@@ -35,6 +35,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _fillRequestedAutomatic;
   bool? _fillRequestedInteractive;
   bool? _saveRequested;
+  AutofillPreferences? _preferences;
 
   @override
   void initState() {
@@ -52,6 +53,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _fillRequestedAutomatic = await AutofillService().fillRequestedAutomatic;
     _fillRequestedInteractive =
         await AutofillService().fillRequestedInteractive;
+    _preferences = await AutofillService().getPreferences();
     setState(() {});
   }
 
@@ -90,6 +92,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
               Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
               Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
+              Text('Offer save enabled: ${_preferences?.enableSaving}\n'),
+              ElevatedButton(
+                child: const Text('Toggle Save enabled setting'),
+                onPressed: () async {
+                  await AutofillService().setPreferences(AutofillPreferences(
+                    enableDebug: _preferences!.enableDebug,
+                    enableSaving: !_preferences!.enableSaving,
+                  ));
+                  await _updateStatus();
+                },
+              ),
               ElevatedButton(
                 child: const Text('requestSetAutofillService'),
                 onPressed: () async {

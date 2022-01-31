@@ -9,7 +9,8 @@ private val logger = KotlinLogging.logger {}
 
 @JsonClass(generateAdapter = true)
 data class AutofillPreferences(
-    val enableDebug: Boolean = false
+        val enableDebug: Boolean = false,
+        val enableSaving: Boolean = true
 ) {
 
     companion object {

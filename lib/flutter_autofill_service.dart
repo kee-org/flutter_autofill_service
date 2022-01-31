@@ -26,15 +26,20 @@ class PwDataset {
 }
 
 class AutofillPreferences {
-  AutofillPreferences({required this.enableDebug});
+  AutofillPreferences({required this.enableDebug, this.enableSaving = true});
 
   factory AutofillPreferences.fromJson(Map<dynamic, dynamic> json) =>
-      AutofillPreferences(enableDebug: json['enableDebug'] as bool);
+      AutofillPreferences(
+        enableDebug: json['enableDebug'] as bool,
+        enableSaving: json['enableSaving'] as bool? ?? true,
+      );
 
   final bool enableDebug;
+  final bool enableSaving;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'enableDebug': enableDebug,
+        'enableSaving': enableSaving,
       };
 }
 
@@ -134,9 +139,11 @@ class AutofillService {
 
   Future<AutofillPreferences> getPreferences() async {
     final json =
-        await (_channel.invokeMapMethod<String, dynamic>('getPreferences')
-            as FutureOr<Map<String, dynamic>>);
+        await (_channel.invokeMapMethod<String, dynamic>('getPreferences'));
     _logger.fine('Got preferences $json');
+    if (json == null) {
+      return AutofillPreferences(enableDebug: false);
+    }
     return AutofillPreferences.fromJson(json);
   }
 
