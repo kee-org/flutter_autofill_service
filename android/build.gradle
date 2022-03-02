@@ -2,14 +2,15 @@ group 'com.keevault.flutter_autofill_service'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.4.10'
+    ext.kotlin_version = '1.6.10'
     repositories {
         google()
         jcenter()
+        mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:4.2.2'
+        classpath 'com.android.tools.build:gradle:7.1.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -18,6 +19,7 @@ rootProject.allprojects {
     repositories {
         google()
         jcenter()
+        mavenCentral()
     }
 }
 
@@ -50,16 +52,16 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
     implementation 'androidx.autofill:autofill:1.1.0'
-    implementation "androidx.annotation:annotation:1.1.0"
-    implementation 'androidx.appcompat:appcompat:1.2.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.2'
-    implementation 'com.google.android.material:material:1.2.1'
+    implementation "androidx.annotation:annotation:1.3.0"
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
+    implementation 'com.google.android.material:material:1.5.0'
     implementation "io.github.microutils:kotlin-logging:1.7.6"
 
-    implementation 'androidx.core:core-ktx:1.3.2'
+    implementation 'androidx.core:core-ktx:1.7.0'
 
     // json deserialize
-    implementation "com.squareup.moshi:moshi:1.11.0"
-    implementation "com.squareup.moshi:moshi-kotlin:1.11.0"
-    kapt("com.squareup.moshi:moshi-kotlin-codegen:1.11.0")
+    implementation "com.squareup.moshi:moshi:1.13.0"
+    implementation "com.squareup.moshi:moshi-kotlin:1.13.0"
+    kapt("com.squareup.moshi:moshi-kotlin-codegen:1.13.0")
 }
