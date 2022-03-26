@@ -210,7 +210,7 @@ class AssistStructureParser(structure: AssistStructure) {
             // using methods such as getText() or getHint().
             logger.debug { "$depth     viewNode no hints, text:${viewNode.text} and hint:${viewNode.hint} and inputType:${viewNode.inputType}" }
         }
-
+        logger.debug { "doing it now 2"}
         viewNode.idPackage?.let { idPackage ->
             packageNames.add(idPackage)
         }
@@ -234,9 +234,26 @@ class AssistStructureParser(structure: AssistStructure) {
                         type.heuristics
                                 //TODO: Maybe we can filter here to remove newUsername/newPassword?
                                 // But probably it will prevent the save feature from working.
+                                // Perhaps instead can create a new AutoFillInputType of NewPassword
+                                // and give it a slightly different set of heuristics?
                                 //.filter { !(viewNode.autofillHints?.contains("newPassword") ?: false) }
+
+                                // filtering here means we have a fieldId entry but with an empty list of MatchedFields
                                 .filter { viewNode.autofillType != View.AUTOFILL_TYPE_NONE }
+
+                                // Include only those heuristics whose predicate matches this view node
                                 .filter { it.predicate(viewNode, viewNode) }
+
+                                //TODO: We can now maybe skip the weight ordering when processing the
+                                // list of fieldIds later?
+                                // We order by weight and block all heuristics from the result once a
+                                // heuristic with a block marker is found. In practice this will probably
+                                // be the very first marker since we will set a high weight for intentional
+                                // block operations but in future we could feasibly introduce some prioritised
+                                // block operations that only block a field if no higher priority matches
+                                // are found.
+                                .sortedByDescending { it.weight }
+                                .dropLastWhile { it.block }
                                 .map { MatchedField(it, autofillId) }
                 )
             }

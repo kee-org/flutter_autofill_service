@@ -251,18 +251,42 @@ data class SaveInfoMetadata(
     fun toJsonString(): String = jsonAdapter.toJson(this)
 }
 
+private val usernameHints = listOf(
+        "username",
+        "e-mail",
+        "mail",
+        "login",
+)
+
+private val passwordHints = listOf(
+        "password",
+        "passwort",
+        "pswd",
+)
+
+private val blockHints = listOf(
+        "search",
+        "find",
+        "recipient",
+        "to",
+        "from",
+        "edit",
+)
+
 data class AutofillHeuristic(
         val weight: Int,
         val message: String?,
+        val block: Boolean,
         val predicate: AssistStructure.ViewNode.(node: AssistStructure.ViewNode) -> Boolean
 )
 
 private fun MutableList<AutofillHeuristic>.heuristic(
         weight: Int,
         message: String? = null,
+        block: Boolean? = false,
         predicate: AssistStructure.ViewNode.(node: AssistStructure.ViewNode) -> Boolean
 ) =
-        add(AutofillHeuristic(weight, message, predicate))
+        add(AutofillHeuristic(weight, message, block ?: false, predicate))
 
 
 @TargetApi(Build.VERSION_CODES.O)
@@ -270,8 +294,16 @@ private fun MutableList<AutofillHeuristic>.autofillHint(weight: Int, hint: Strin
         heuristic(weight) { autofillHints?.contains(hint) == true }
 
 @TargetApi(Build.VERSION_CODES.O)
-private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, match: String) =
-        heuristic(weight) { idEntry == match }
+private fun MutableList<AutofillHeuristic>.nonAutofillHint(weight: Int, matches: List<String>, block: Boolean? = false) =
+        heuristic(weight, "naHint", block) { hint?.lowercase()?.let { h -> matches.any { it in h} } ?: false }
+
+@TargetApi(Build.VERSION_CODES.O)
+private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, match: String, block: Boolean? = false) =
+        heuristic(weight, "id=$match", block) { idEntry == match }
+
+@TargetApi(Build.VERSION_CODES.O)
+private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, matches: List<String>, block: Boolean? = false) =
+        heuristic(weight, "id", block) { idEntry?.lowercase()?.let { i -> matches.any { it in i} } ?: false }
 
 @TargetApi(Build.VERSION_CODES.O)
 private fun MutableList<AutofillHeuristic>.htmlAttribute(weight: Int, attr: String, value: String) =
@@ -290,23 +322,29 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         defaults(View.AUTOFILL_HINT_PASSWORD, "password")
         htmlAttribute(400, "type", "password")
         heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
-        heuristic(239) { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
-        heuristic(238) { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
+        heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
+        heuristic(238, "text variation visible password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
+        nonAutofillHint(200, passwordHints)
+        nonAutofillHint(10000, blockHints, true)
+        idEntry(10000, blockHints, true)
     }),
     Email(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_EMAIL_ADDRESS, "mail")
         htmlAttribute(400, "type", "mail")
         htmlAttribute(300, "name", "mail")
         heuristic(250, "hint=mail") { hint?.toLowerCase(java.util.Locale.ROOT)?.contains("mail") == true }
+        nonAutofillHint(10000, blockHints, true)
+        idEntry(10000, blockHints, true)
     }),
     UserName(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_USERNAME, "user")
         htmlAttribute(400, "name", "user")
         htmlAttribute(400, "name", "username")
-        heuristic(300) { hint?.toLowerCase(java.util.Locale.ROOT)?.contains("login") == true }
+        nonAutofillHint(300, usernameHints)
+        nonAutofillHint(10000, blockHints, true)
+        idEntry(10000, blockHints, true)
     }),
 }
-
 
 inline fun Int?.hasFlag(flag: Int) = this != null && flag and this == flag
 inline fun Int.withFlag(flag: Int) = this or flag
