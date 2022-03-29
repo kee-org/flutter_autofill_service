@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -22,6 +23,7 @@ import android.view.inputmethod.InlineSuggestionsRequest
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
 import com.keevault.flutter_autofill_service.IntentHelpers.getStartIntent
+import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -31,7 +33,6 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import mu.KotlinLogging
-import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 
 
 private val logger = KotlinLogging.logger {}
@@ -144,6 +145,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
     }
 
+    private fun getDrawable(name: String): Int {
+        val resources: Resources = context.resources
+        return resources.getIdentifier(name, "drawable",
+                context.packageName)
+    }
+
     private fun resultWithDataset(call: MethodCall, result: Result) {
         val label = call.argument<String>("label") ?: "Autofill"
         val username = call.argument<String>("username") ?: ""
@@ -212,6 +219,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         val activity = requireNotNull(this.activity)
         val structure = AssistStructureParser(structureParcel)
+        var totalToReturn = 0;
 
         val autofillIds =
                 lastIntent?.extras?.getParcelableArrayList<AutofillId>(
@@ -230,6 +238,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             )
         }
 //        structure.fieldIds.values.forEach { it.sortByDescending { it.heuristic.weight } }
+
+        val metaData = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).metaData
+        val serviceShortName = metaData.getString("com.keevault.flutter_autofill_service.service_short_name") ?: "AutoFill"
+        val selectAnotherEntryLabel = metaData.getString("com.keevault.flutter_autofill_service.select_another_entry") ?: "Use a different entry"
 
         val fillResponseBuilder = FillResponse.Builder()
                 // Pretty sure this is lame. Docs claim that it will even throw an IllegalArgumentException... although it
@@ -331,13 +343,23 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                             }
                         }
                                 .build())
+                        totalToReturn++;
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        val matchHeaderDrawableName = metaData.getString("com.keevault.flutter_autofill_service.match_header_drawable_name")
+                        val drawableId = if (matchHeaderDrawableName != null) getDrawable(matchHeaderDrawableName) else R.drawable.ic_info_24dp
+                        setHeader(RemoteViews(
+                                context.packageName,
+                                R.layout.multidataset_service_list_item
+                        ).apply {
+                            val countSuffix = if (totalToReturn == 1) "" else "es"
+                            setTextViewText(R.id.text, "$totalToReturn $serviceShortName match$countSuffix...")
+                            setImageViewResource(R.id.icon, drawableId)
+                        })
                     }
                 }
 
-        logger.debug { "Trying to fetch package info." }
-        val activityName = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).run {
-            metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME")
-        } ?: "com.keevault.flutter_autofill_service_example.AutofillActivity"
+        val activityName = metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME") ?: "com.keevault.flutter_autofill_service_example.AutofillActivity"
         logger.debug("got activity $activityName")
         val startIntent = getStartIntent(activityName, structure.packageNames, structure.webDomains, context, "/autofill_select", null)
         val intentSender: IntentSender = PendingIntent.getActivity(
@@ -352,18 +374,18 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                     structure.fieldIds.flatMap { entry ->
                         entry.value.map { entry.key to it }
                     }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
-                        val nonInlineResponse = RemoteViews(
-                                context.packageName,
-                                android.R.layout.simple_list_item_1
-                        ).apply {
-                            // This gets replaced when user interacts with it so we can't
-                            // offer this more than once - user will have to refresh the
-                            // web page or restart the app if they make a mistake.
-                            setTextViewText(android.R.id.text1, "Use a different entry")
-                        }
+                        val selectAnotherEntryDrawableName = metaData.getString("com.keevault.flutter_autofill_service.select_another_entry_drawable_name")
+                        val drawableId = if (selectAnotherEntryDrawableName != null) getDrawable(selectAnotherEntryDrawableName) else R.drawable.ic_baseline_playlist_add_24
+                        // This gets replaced when user interacts with it so we can't
+                        // offer this more than once - user will have to refresh the
+                        // web page or restart the app if they make a mistake.
+                        val nonInlineResponse = RemoteViewsHelper.viewsWithNoAuth(
+                                context.packageName, selectAnotherEntryLabel, drawableId
+                        )
+
                         var wasSetInline = false
                         if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val inlineResponse = InlinePresentationHelper.viewsWithNoAuth("Use a different entry",
+                            val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(selectAnotherEntryLabel,
                                     inlineRequest!!.inlinePresentationSpecs.last(),
                                     null, context)
                             if (inlineResponse != null) {

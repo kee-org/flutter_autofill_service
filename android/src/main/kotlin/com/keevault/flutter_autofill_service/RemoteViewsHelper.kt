@@ -1,5 +1,6 @@
 package com.keevault.flutter_autofill_service
 
+import android.graphics.drawable.Icon
 import android.widget.RemoteViews
 import androidx.annotation.DrawableRes
 
@@ -8,12 +9,14 @@ import androidx.annotation.DrawableRes
  */
 object RemoteViewsHelper {
 
-    fun viewsWithAuth(packageName: String, text: String): RemoteViews {
-        return simpleRemoteViews(packageName, text, R.drawable.ic_lock_black_24dp)
+    fun viewsWithAuth(packageName: String, text: String,
+                      @DrawableRes drawableId: Int = R.drawable.ic_lock_24dp): RemoteViews {
+        return simpleRemoteViews(packageName, text, drawableId)
     }
 
-    fun viewsWithNoAuth(packageName: String, text: String): RemoteViews {
-        return simpleRemoteViews(packageName, text, R.drawable.ic_person_black_24dp)
+    fun viewsWithNoAuth(packageName: String, text: String,
+                        @DrawableRes drawableId: Int = R.drawable.ic_person_24dp): RemoteViews {
+        return simpleRemoteViews(packageName, text, drawableId)
     }
 
     private fun simpleRemoteViews(
@@ -25,7 +28,8 @@ object RemoteViewsHelper {
                 R.layout.multidataset_service_list_item
         )
         presentation.setTextViewText(R.id.text, remoteViewsText)
-        presentation.setImageViewResource(R.id.icon, drawableId)
+        val icon = Icon.createWithResource(packageName, drawableId)
+        presentation.setImageViewIcon(R.id.icon, icon)
         return presentation
     }
 }

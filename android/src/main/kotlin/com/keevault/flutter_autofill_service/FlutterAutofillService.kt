@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.app.assist.AssistStructure
 import android.content.*
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.os.*
 import android.service.autofill.*
 import android.view.View
@@ -33,6 +34,7 @@ class FlutterAutofillService : AutofillService() {
 
     private lateinit var autofillPreferenceStore: AutofillPreferenceStore
     private var unlockLabel = "Autofill"
+    private var unlockDrawableId = R.drawable.ic_lock_24dp
 
     override fun onCreate() {
         super.onCreate()
@@ -49,10 +51,18 @@ class FlutterAutofillService : AutofillService() {
         metaData.getString("com.keevault.flutter_autofill_service.unlock_label")?.let {
             unlockLabel = it
         }
+        metaData.getString("com.keevault.flutter_autofill_service.unlock_drawable_name")?.let {
+            unlockDrawableId = getDrawable(it)
+        }
         //TODO: Find a way to localise this message and the "pick another" message
         logger.info("Unlock label will be $unlockLabel")
     }
 
+    private fun getDrawable(name: String): Int {
+        val resources: Resources = resources
+        return resources.getIdentifier(name, "drawable",
+                packageName)
+    }
 
     override fun onFillRequest(
             request: FillRequest,
@@ -130,7 +140,7 @@ class FlutterAutofillService : AutofillService() {
             fillResponseBuilder.setAuthentication(
                     autoFillIds.toTypedArray(),
                     intentSender,
-                    if (!respondInline) RemoteViewsHelper.viewsWithAuth(packageName, useLabel) else null,
+                    if (!respondInline) RemoteViewsHelper.viewsWithAuth(packageName, useLabel, unlockDrawableId) else null,
                     if (respondInline) InlinePresentationHelper.viewsWithAuth(useLabel, inlineRequest!!.inlinePresentationSpecs.first(), pendingIntent, this) else null
             )
         } else {

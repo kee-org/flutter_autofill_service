@@ -24,7 +24,7 @@ object InlinePresentationHelper {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_lock_black_24dp, pendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_lock_24dp, pendingIntent, context)
         return if (slice != null) {
             InlinePresentation(slice, inlinePresentationSpec, false);
         } else null
@@ -39,7 +39,7 @@ object InlinePresentationHelper {
         }
 
         // Not sure why but InlinePresentation API requires a pending intent so we include a dummy one if none was supplied to us
-        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_person_black_24dp, pendingIntent
+        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_person_24dp, pendingIntent
                 ?: PendingIntent.getService(context, 0, Intent(),
                         PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT), context)
         return if (slice != null) {

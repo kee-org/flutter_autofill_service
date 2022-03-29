@@ -60,6 +60,12 @@
             android:value="com.keevault.flutter_autofill_service_example.AutofillActivity" />
         <meta-data android:name="com.keevault.flutter_autofill_service.SAVE_ACTIVITY_NAME"
             android:value="com.keevault.flutter_autofill_service_example.MainActivity" />
+            <meta-data
+                android:name="com.keevault.flutter_autofill_service.match_header_drawable_name"
+                android:value="ic_android_24" />
+            <meta-data
+                android:name="com.keevault.flutter_autofill_service.select_another_entry"
+                android:value="Pick different entry" />
 
     </application>
 
