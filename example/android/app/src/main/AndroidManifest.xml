@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.keevault.flutter_autofill_service_example">
+    package="com.keevault.flutter_autofill_service_example"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:label="flutter_autofill_service_example"
@@ -60,13 +61,25 @@
             android:value="com.keevault.flutter_autofill_service_example.AutofillActivity" />
         <meta-data android:name="com.keevault.flutter_autofill_service.SAVE_ACTIVITY_NAME"
             android:value="com.keevault.flutter_autofill_service_example.MainActivity" />
-            <meta-data
-                android:name="com.keevault.flutter_autofill_service.match_header_drawable_name"
-                android:value="ic_android_24" />
-            <meta-data
-                android:name="com.keevault.flutter_autofill_service.select_another_entry"
-                android:value="Pick different entry" />
+        <meta-data
+            android:name="com.keevault.flutter_autofill_service.match_header_drawable_name"
+            android:value="ic_android_24" />
+        <meta-data
+            android:name="com.keevault.flutter_autofill_service.select_another_entry"
+            android:value="Pick different entry" />
+        <service
+            android:name="com.keevault.flutter_autofill_service.FlutterAutofillService"
+            tools:replace="label"        
+            android:label="Flutter service example app">
 
+            <meta-data
+                android:name="com.keevault.flutter_autofill_service.unlock_label"
+                android:value="Fill using cool example app" />
+            <!-- Override default unlock icon with meta-data like below -->
+            <!-- <meta-data
+                android:name="com.keevault.flutter_autofill_service.unlock_drawable_name"
+                android:value="ic_android_24" /> -->
+        </service>
     </application>
 
 </manifest>
