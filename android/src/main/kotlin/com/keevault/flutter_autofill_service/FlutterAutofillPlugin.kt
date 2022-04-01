@@ -43,7 +43,6 @@ data class PwDataset(
         val password: String
 )
 
-@RequiresApi(Build.VERSION_CODES.O)
 class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         PluginRegistry.ActivityResultListener, PluginRegistry.NewIntentListener, ActivityAware {
 
@@ -81,7 +80,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 intent.data = Uri.parse("package:com.example.android.autofill.service")
                 logger.debug { "enableService(): intent=$intent" }
                 requestSetAutofillServiceResult = result
-                requireNotNull(activity, { "No Activity available." })
+                requireNotNull(activity) { "No Activity available." }
                         .startActivityForResult(intent,
                                 REQUEST_CODE_SET_AUTOFILL_SERVICE
                         )
@@ -114,7 +113,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             // List of datasets - user must then select which one they want to be filled
             // null indicates we are declining to look for any matches
             "resultWithDatasets" -> {
-                val sets = call.argument<List<Map<String, String>>>("datasets");
+                val sets = call.argument<List<Map<String, String>>>("datasets")
                 val list = sets?.map { m ->
                     m["label"]?.let { m["username"]?.let { it1 -> m["password"]?.let { it2 -> PwDataset(it, it1, it2) } } }
                             ?: throw IllegalArgumentException("Invalid dataset object.")
@@ -163,7 +162,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     private fun resultWithNullDataset(result: Result) {
         val activity = requireNotNull(this.activity)
-        val replyIntent = Intent();
+        val replyIntent = Intent()
 
         // Official docs say we must return null but the API does not allow this. Thus I am
         // guessing that I must omit the entire EXTRA_AUTHENTICATION_RESULT data item
@@ -189,27 +188,28 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         ?: activity?.intent?.extras?.getParcelable(
                                 AutofillManager.EXTRA_CLIENT_STATE
                         ) ?: Bundle()
-
-        val inlineRequest: InlineSuggestionsRequest? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-
-            lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST)
-                    ?: activity?.intent?.extras?.getParcelable(
-                            AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST
-                    )
-        } else {
-            null
-        }
-
-        val maxInlineSuggestionCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            inlineRequest?.maxSuggestionCount ?: 0
-        } else 0
-
-        //TODO: Stop hardcoding this if we find a way and desire to support Android 11+ IME autofill
-        val respondInline = false
-        // Ignore IMEs that only allow one item because we require at least two
-//        val respondInline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//            maxInlineSuggestionCount >= 2
-//        } else false
+//
+//        val inlineRequest: InlineSuggestionsRequest? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//
+//            // Warning below can be ignored - the string gets inlined and then this returns null at runtime, only on R, so we effectively can only support inline suggestions on S+ but not a priority at the moment anyway
+//            lastIntent?.extras?.getParcelable(AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST)
+//                    ?: activity?.intent?.extras?.getParcelable(
+//                            AutofillManager.EXTRA_INLINE_SUGGESTIONS_REQUEST
+//                    )
+//        } else {
+//            null
+//        }
+//
+//        val maxInlineSuggestionCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            inlineRequest?.maxSuggestionCount ?: 0
+//        } else 0
+//
+//        //TODO: Stop hardcoding this if we find a way and desire to support Android 11+ IME autofill
+//        val respondInline = false
+//        // Ignore IMEs that only allow one item because we require at least two
+////        val respondInline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+////            maxInlineSuggestionCount >= 2
+////        } else false
 
         if (structureParcel == null) {
             logger.info { "No structure available. (activity: $activity)" }
@@ -219,7 +219,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         val activity = requireNotNull(this.activity)
         val structure = AssistStructureParser(structureParcel)
-        var totalToReturn = 0;
+        var totalToReturn = 0
 
         val autofillIds =
                 lastIntent?.extras?.getParcelableArrayList<AutofillId>(
@@ -252,7 +252,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 //        null
                 //    )
                 .apply {
-                    pwDatasets.take(if (respondInline) maxInlineSuggestionCount - 1 else 10).forEachIndexed { i, pw ->
+                    //pwDatasets.take(if (respondInline) maxInlineSuggestionCount - 1 else 10).forEachIndexed { i, pw ->
+                    pwDatasets.take(10).forEachIndexed { i, pw ->
                         addDataset(Dataset.Builder(remoteViews()).apply {
                             setId("test ${pw.username}")
                             structure.allNodes.forEach { node ->
@@ -265,28 +266,28 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                         setTextViewText(android.R.id.text1, pw.label + " (focussed)")
                                     }
                                     val autoFillValue = AutofillValue.forText(pw.username)
-                                    var wasSetInline = false
-                                    if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                        val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(pw.username,
-                                                inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
-                                                        i) { inlineRequest.inlinePresentationSpecs.last() },
-                                                null, context)
-                                        if (inlineResponse != null) {
-                                            setValue(
-                                                    node.autofillId!!,
-                                                    autoFillValue,
-                                                    nonInlineResponse,
-                                                    inlineResponse
-                                            )
-                                            wasSetInline = true
-                                        }
-                                    }
-                                    if (!wasSetInline) {
+//                                    var wasSetInline = false
+//                                    if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                                        val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(pw.username,
+//                                                inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
+//                                                        i) { inlineRequest.inlinePresentationSpecs.last() },
+//                                                null, context)
+//                                        if (inlineResponse != null) {
+//                                            setValue(
+//                                                    node.autofillId!!,
+//                                                    autoFillValue,
+//                                                    nonInlineResponse,
+//                                                    inlineResponse
+//                                            )
+//                                            wasSetInline = true
+//                                        }
+//                                    }
+//                                    if (!wasSetInline) {
                                         setValue(
                                                 node.autofillId!!,
                                                 autoFillValue,
                                                 nonInlineResponse)
-                                    }
+//                                    }
                                 }
                             }
                             val filledAutofillIds = mutableSetOf<AutofillId>()
@@ -318,32 +319,32 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 ).apply {
                                     setTextViewText(android.R.id.text1, pw.label)
                                 }
-                                var wasSetInline = false
-                                if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                    val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(autoFillValue,
-                                            inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
-                                                    i) { inlineRequest.inlinePresentationSpecs.last() },
-                                            null, context)
-                                    if (inlineResponse != null) {
-                                        setValue(
-                                                field.autofillId,
-                                                AutofillValue.forText(autoFillValue),
-                                                nonInlineResponse,
-                                                inlineResponse
-                                        )
-                                        wasSetInline = true
-                                    }
-                                }
-                                if (!wasSetInline) {
+//                                var wasSetInline = false
+//                                if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                                    val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(autoFillValue,
+//                                            inlineRequest!!.inlinePresentationSpecs.elementAtOrElse(
+//                                                    i) { inlineRequest.inlinePresentationSpecs.last() },
+//                                            null, context)
+//                                    if (inlineResponse != null) {
+//                                        setValue(
+//                                                field.autofillId,
+//                                                AutofillValue.forText(autoFillValue),
+//                                                nonInlineResponse,
+//                                                inlineResponse
+//                                        )
+//                                        wasSetInline = true
+//                                    }
+//                                }
+//                                if (!wasSetInline) {
                                     setValue(
                                             field.autofillId,
                                             AutofillValue.forText(autoFillValue),
                                             nonInlineResponse)
-                                }
+//                                }
                             }
                         }
                                 .build())
-                        totalToReturn++;
+                        totalToReturn++
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         val matchHeaderDrawableName = metaData.getString("com.keevault.flutter_autofill_service.match_header_drawable_name")
@@ -383,28 +384,28 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 context.packageName, selectAnotherEntryLabel, drawableId
                         )
 
-                        var wasSetInline = false
-                        if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(selectAnotherEntryLabel,
-                                    inlineRequest!!.inlinePresentationSpecs.last(),
-                                    null, context)
-                            if (inlineResponse != null) {
-                                setValue(
-                                        field.autofillId,
-                                        null,
-                                        nonInlineResponse,
-                                        inlineResponse
-                                )
-                                wasSetInline = true
-                            }
-                        }
-                        if (!wasSetInline) {
+//                        var wasSetInline = false
+//                        if (respondInline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                            val inlineResponse = InlinePresentationHelper.viewsWithNoAuth(selectAnotherEntryLabel,
+//                                    inlineRequest!!.inlinePresentationSpecs.last(),
+//                                    null, context)
+//                            if (inlineResponse != null) {
+//                                setValue(
+//                                        field.autofillId,
+//                                        null,
+//                                        nonInlineResponse,
+//                                        inlineResponse
+//                                )
+//                                wasSetInline = true
+//                            }
+//                        }
+//                        if (!wasSetInline) {
                             setValue(
                                     field.autofillId,
                                     null,
                                     nonInlineResponse
                             )
-                        }
+//                        }
                     }
 
                     setAuthentication(intentSender)
@@ -567,20 +568,8 @@ class FlutterAutofillPlugin : FlutterPlugin, ActivityAware {
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         val channel = MethodChannel(binding.binaryMessenger, "com.keevault/flutter_autofill_service")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            impl = FlutterAutofillPluginImpl(binding.applicationContext)
-            channel.setMethodCallHandler(impl)
-        } else {
-            channel.setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "hasAutofillServicesSupport" ->
-                        result.success(false)
-                    "hasEnabledAutofillServices" ->
-                        result.success(null)
-                    else -> result.notImplemented()
-                }
-            }
-        }
+        impl = FlutterAutofillPluginImpl(binding.applicationContext)
+        channel.setMethodCallHandler(impl)
         this.channel = channel
     }
 

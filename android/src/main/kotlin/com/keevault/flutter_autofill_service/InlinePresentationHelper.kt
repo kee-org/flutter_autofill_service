@@ -15,6 +15,7 @@ import androidx.annotation.RequiresApi
 import androidx.autofill.inline.UiVersions
 import androidx.autofill.inline.v1.InlineSuggestionUi
 
+@RequiresApi(api = Build.VERSION_CODES.R)
 object InlinePresentationHelper {
 
     fun viewsWithAuth(text: String,
@@ -26,7 +27,7 @@ object InlinePresentationHelper {
         }
         val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_lock_24dp, pendingIntent, context)
         return if (slice != null) {
-            InlinePresentation(slice, inlinePresentationSpec, false);
+            InlinePresentation(slice, inlinePresentationSpec, false)
         } else null
     }
 
@@ -43,7 +44,7 @@ object InlinePresentationHelper {
                 ?: PendingIntent.getService(context, 0, Intent(),
                         PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT), context)
         return if (slice != null) {
-            InlinePresentation(slice, inlinePresentationSpec, false);
+            InlinePresentation(slice, inlinePresentationSpec, false)
         } else null
     }
 
@@ -74,27 +75,27 @@ object InlinePresentationHelper {
             context: Context
     ): Slice? {
         // Make sure that the IME spec claims support for v1 UI template.
-        val imeStyle = inlinePresentationSpec.style;
+        val imeStyle = inlinePresentationSpec.style
         if (!UiVersions.getVersions(imeStyle).contains(UiVersions.INLINE_UI_VERSION_1)) {
-            return null;
+            return null
         }
 
         // Build the content for the v1 UI.
-        val builder = InlineSuggestionUi.newContentBuilder(pendingIntent);
+        val builder = InlineSuggestionUi.newContentBuilder(pendingIntent)
         if (title.isNotEmpty()) {
-            builder.setTitle(title);
+            builder.setTitle(title)
         }
         if (subtitle?.isNotEmpty() == true) {
-            builder.setSubtitle(subtitle);
+            builder.setSubtitle(subtitle)
         }
         if (iconId > 0) {
-            val icon = Icon.createWithResource(context, iconId);
+            val icon = Icon.createWithResource(context, iconId)
             if (icon != null) {
                 //TODO: If want to avoid tinting some icons such as favicons, logos, etc. we can use the line below
                 //icon.SetTintBlendMode(BlendMode.Dst);
-                builder.setStartIcon(icon);
+                builder.setStartIcon(icon)
             }
         }
-        return builder.build().slice;
+        return builder.build().slice
     }
 }

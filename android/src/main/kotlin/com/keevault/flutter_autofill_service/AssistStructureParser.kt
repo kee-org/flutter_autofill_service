@@ -19,7 +19,7 @@ data class WebDomain(val scheme: String?, val domain: String)
 class AssistStructureParser(structure: AssistStructure) {
 
     val autoFillIds = mutableListOf<AutofillId>()
-    val allNodes = mutableListOf<AssistStructure.ViewNode>()
+    val allNodes = mutableListOf<ViewNode>()
 
     var packageNames = HashSet<String>()
     var webDomains = HashSet<WebDomain>()
@@ -27,19 +27,20 @@ class AssistStructureParser(structure: AssistStructure) {
     val fieldIds =
             mutableMapOf<AutofillInputType, MutableList<MatchedField>>()
 
-    private val excludedPackageIds: List<String> = listOf("android");
+    private val excludedPackageIds: List<String> = listOf("android")
 
 
     private val trustedNativeBrowsers: List<String> = listOf(
             "com.duckduckgo.mobile.android",
             "org.mozilla.focus",
             "org.mozilla.klar",
-    );
+    )
 
     private val trustedCompatBrowsers: List<String> = listOf(
             "acr.browser.lightning",
             "acr.browser.barebones",
             "alook.browser",
+            "alook.browser.google",
             "com.amazon.cloud9",
             "com.android.browser",
             "com.android.chrome",
@@ -57,7 +58,9 @@ class AssistStructureParser(structure: AssistStructure) {
             "com.ecosia.android",
             "com.google.android.apps.chrome",
             "com.google.android.apps.chrome_dev",
+            "com.google.android.captiveportallogin",
             "com.kiwibrowser.browser",
+            "com.kiwibrowser.browser.dev",
             "com.microsoft.emmx",
             "com.mmbox.browser",
             "com.mmbox.xbrowser",
@@ -67,6 +70,7 @@ class AssistStructureParser(structure: AssistStructure) {
             "com.opera.mini.native",
             "com.opera.mini.native.beta",
             "com.opera.touch",
+            "com.qflair.browserq",
             "com.qwant.liberty",
             "com.sec.android.app.sbrowser",
             "com.sec.android.app.sbrowser.beta",
@@ -107,7 +111,8 @@ class AssistStructureParser(structure: AssistStructure) {
             "org.torproject.torbrowser_alpha",
             "org.ungoogled.chromium.extensions.stable",
             "org.ungoogled.chromium.stable",
-    );
+            "us.spotco.fennec_dos",
+    )
 
     init {
         traverseStructure(structure)
@@ -164,7 +169,7 @@ class AssistStructureParser(structure: AssistStructure) {
     // }
 
     @TargetApi(Build.VERSION_CODES.O)
-    private fun traverseNode(viewNode: AssistStructure.ViewNode, depth: String) {
+    private fun traverseNode(viewNode: ViewNode, depth: String) {
         allNodes.add(viewNode)
 //        logger.debug { "We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
         val debug =
@@ -210,7 +215,7 @@ class AssistStructureParser(structure: AssistStructure) {
             // using methods such as getText() or getHint().
             logger.debug { "$depth     viewNode no hints, text:${viewNode.text} and hint:${viewNode.hint} and inputType:${viewNode.inputType}" }
         }
-        logger.debug { "doing it now 2"}
+
         viewNode.idPackage?.let { idPackage ->
             packageNames.add(idPackage)
         }
@@ -259,12 +264,12 @@ class AssistStructureParser(structure: AssistStructure) {
             }
         }
 
-        val children: List<AssistStructure.ViewNode>? =
+        val children: List<ViewNode> =
                 viewNode.run {
                     (0 until childCount).map { getChildAt(it) }
                 }
 
-        children?.forEach { childNode: AssistStructure.ViewNode ->
+        children.forEach { childNode: ViewNode ->
             traverseNode(childNode, "    ")
         }
     }

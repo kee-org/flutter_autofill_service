@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <autofill-service xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools" tools:targetApi="p"
+    xmlns:tools="http://schemas.android.com/tools" tools:targetApi="r"
     android:supportsInlineSuggestions="true">
   <compatibility-package
     android:name="acr.browser.lightning"
@@ -10,6 +10,9 @@
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="alook.browser"
+    android:maxLongVersionCode="10000000000"/>
+  <compatibility-package
+    android:name="alook.browser.google"
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.amazon.cloud9"
@@ -63,7 +66,13 @@
     android:name="com.google.android.apps.chrome_dev"
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
+    android:name="com.google.android.captiveportallogin"
+    android:maxLongVersionCode="10000000000"/>
+  <compatibility-package
     android:name="com.kiwibrowser.browser"
+    android:maxLongVersionCode="10000000000"/>
+  <compatibility-package
+    android:name="com.kiwibrowser.browser.dev"
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.microsoft.emmx"
@@ -91,6 +100,9 @@
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.opera.touch"
+    android:maxLongVersionCode="10000000000"/>
+  <compatibility-package
+    android:name="com.qflair.browserq"
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.qwant.liberty"
@@ -211,5 +223,8 @@
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="org.ungoogled.chromium.stable"
+    android:maxLongVersionCode="10000000000"/>
+  <compatibility-package
+    android:name="us.spotco.fennec_dos"
     android:maxLongVersionCode="10000000000"/>
 </autofill-service>

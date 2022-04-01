@@ -22,7 +22,6 @@ import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 
 private val logger = KotlinLogging.logger {}
 
-@RequiresApi(api = Build.VERSION_CODES.O)
 class FlutterAutofillService : AutofillService() {
 
     private val excludedPackages = listOf(
@@ -70,17 +69,7 @@ class FlutterAutofillService : AutofillService() {
             callback: FillCallback
     ) {
         logger.info { "Got fill request $request" }
-//        applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
-        val inlineRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            request.inlineSuggestionsRequest
-        } else {
-            null
-        }
-        //TODO: Enable respond inline here if we choose to support it in future
-        val respondInline = false
-//        val respondInline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//            inlineRequest?.maxSuggestionCount ?: 0 > 0
-//        } else false
+
         val context = request.fillContexts.last()
         val parser = AssistStructureParser(context.structure)
 
@@ -91,7 +80,7 @@ class FlutterAutofillService : AutofillService() {
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()
                 .setClientState(clientState)
 
-        val offerToSave = autofillPreferenceStore.autofillPreferences.enableSaving ?: true;
+        val offerToSave = autofillPreferenceStore.autofillPreferences.enableSaving
 
         if (offerToSave) {
         val (autoFillIdUsernameGuessed, autoFillIdPasswordGuessed) = SaveHelper.guessAutofillIdsForSave(parser, ArrayList(autoFillIds))
@@ -133,21 +122,26 @@ class FlutterAutofillService : AutofillService() {
 
         logger.debug { "startIntent:$startAuthIntent (${startAuthIntent.extras}) - sender: $intentSender" }
 
-
         // Build a FillResponse object that requires authentication.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val inlineRequest = request.inlineSuggestionsRequest
+//TODO: Enable respond inline here if we choose to support it in future
+            val respondInline = false
+//        val respondInline = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            inlineRequest?.maxSuggestionCount ?: 0 > 0
+//        } else false
             fillResponseBuilder.setAuthentication(
                     autoFillIds.toTypedArray(),
                     intentSender,
                     if (!respondInline) RemoteViewsHelper.viewsWithAuth(packageName, useLabel, unlockDrawableId) else null,
+                    //null
                     if (respondInline) InlinePresentationHelper.viewsWithAuth(useLabel, inlineRequest!!.inlinePresentationSpecs.first(), pendingIntent, this) else null
             )
         } else {
             fillResponseBuilder.setAuthentication(
                     autoFillIds.toTypedArray(),
                     intentSender,
-                    RemoteViewsHelper.viewsWithAuth(packageName, useLabel),
+                    RemoteViewsHelper.viewsWithAuth(packageName, useLabel, unlockDrawableId),
             )
 
         }
@@ -209,7 +203,7 @@ class FlutterAutofillService : AutofillService() {
                 ?: setOf(), webDomains
                 ?: setOf(), applicationContext, "/autofill_save", SaveInfoMetadata(username, password))
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(startIntent);
+        startActivity(startIntent)
 
         // This apparently does nothing but Android docs say it is required.
         callback.onSuccess()
@@ -323,7 +317,7 @@ private fun MutableList<AutofillHeuristic>.htmlAttribute(weight: Int, attr: Stri
 private fun MutableList<AutofillHeuristic>.defaults(hint: String, match: String) {
     autofillHint(900, hint)
     idEntry(800, match)
-    heuristic(700) { idEntry?.toLowerCase(Locale.ROOT)?.contains(match) == true }
+    heuristic(700) { idEntry?.lowercase(Locale.ROOT)?.contains(match) == true }
 }
 
 @TargetApi(Build.VERSION_CODES.O)
@@ -342,7 +336,7 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         defaults(View.AUTOFILL_HINT_EMAIL_ADDRESS, "mail")
         htmlAttribute(400, "type", "mail")
         htmlAttribute(300, "name", "mail")
-        heuristic(250, "hint=mail") { hint?.toLowerCase(java.util.Locale.ROOT)?.contains("mail") == true }
+        heuristic(250, "hint=mail") { hint?.lowercase(Locale.ROOT)?.contains("mail") == true }
         nonAutofillHint(10000, blockHints, true)
         idEntry(10000, blockHints, true)
     }),

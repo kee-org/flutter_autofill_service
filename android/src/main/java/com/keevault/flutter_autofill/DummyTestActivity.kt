@@ -29,7 +29,7 @@ class DummyTestActivity : FragmentActivity() {
     @TargetApi(Build.VERSION_CODES.O)
     private fun doStuff() {
         val structureParcel =
-            intent?.extras?.getParcelable<AssistStructure>(AutofillManager.EXTRA_ASSIST_STRUCTURE)
+            intent?.extras?.getParcelable(AutofillManager.EXTRA_ASSIST_STRUCTURE)
                 ?: intent?.extras?.getParcelable<AssistStructure>(
                     AutofillManager.EXTRA_ASSIST_STRUCTURE
                 )
@@ -45,14 +45,14 @@ class DummyTestActivity : FragmentActivity() {
                 "autofillIds"
             )
         logger.debug { "structure: $structure /// autofillIds: $autofillIds" }
-        logger.info { "packageName: ${packageName}" }
+        logger.info { "packageName: $packageName" }
 
         val remoteViews = {
             RemoteViewsHelper.viewsWithNoAuth(
                 packageName, "Fill Me"
             )
         }
-        structure.fieldIds.values.forEach { it.sortByDescending { it.heuristic.weight } }
+        structure.fieldIds.values.forEach { it.sortByDescending { it1 -> it1.heuristic.weight } }
 
 
         val startIntent = Intent(applicationContext, DummyTestActivity::class.java)
