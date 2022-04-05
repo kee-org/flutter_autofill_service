@@ -286,9 +286,6 @@ private val blockHints = listOf(
         "search",
         "find",
         "recipient",
-        "to",
-        "from",
-        "edit",
 )
 
 data class AutofillHeuristic(
