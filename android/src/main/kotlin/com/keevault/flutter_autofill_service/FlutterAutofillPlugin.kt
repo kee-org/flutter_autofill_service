@@ -363,12 +363,23 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val activityName = metaData.getString("com.keevault.flutter_autofill_service.ACTIVITY_NAME") ?: "com.keevault.flutter_autofill_service_example.AutofillActivity"
         logger.debug("got activity $activityName")
         val startIntent = getStartIntent(activityName, structure.packageNames, structure.webDomains, context, "/autofill_select", null)
-        val intentSender: IntentSender = PendingIntent.getActivity(
-                context,
-                1230,
-                startIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-        ).intentSender
+        val intentSender: IntentSender
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            intentSender = PendingIntent.getActivity(
+                    context,
+                    1230,
+                    startIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
+            ).intentSender
+        } else {
+            @SuppressLint("UnspecifiedImmutableFlag")
+            intentSender = PendingIntent.getActivity(
+                    context,
+                    1230,
+                    startIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT
+            ).intentSender
+        }
 
         fillResponseBuilder.addDataset(
                 Dataset.Builder().apply {

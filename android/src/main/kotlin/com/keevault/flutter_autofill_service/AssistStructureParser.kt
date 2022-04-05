@@ -258,7 +258,7 @@ class AssistStructureParser(structure: AssistStructure) {
                                 // block operations that only block a field if no higher priority matches
                                 // are found.
                                 .sortedByDescending { it.weight }
-                                .dropLastWhile { it.block }
+                                .takeWhile { !it.block }
                                 .map { MatchedField(it, autofillId) }
                 )
             }

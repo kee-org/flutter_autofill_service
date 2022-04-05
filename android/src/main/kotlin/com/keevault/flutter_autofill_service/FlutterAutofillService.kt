@@ -1,23 +1,26 @@
 package com.keevault.flutter_autofill_service
 
+import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
-import android.content.*
+import android.content.ComponentName
+import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.content.res.Resources
-import android.os.*
+import android.os.Build
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.TransactionTooLargeException
 import android.service.autofill.*
 import android.view.View
 import android.view.autofill.AutofillId
-import androidx.annotation.*
-import com.squareup.moshi.*
+import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
 import mu.KotlinLogging
 import java.util.*
-import android.os.Build
-
-import android.os.Bundle
-import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 
 
 private val logger = KotlinLogging.logger {}
@@ -112,12 +115,23 @@ class FlutterAutofillService : AutofillService() {
 
         val startAuthIntent = IntentHelpers.getStartIntent(activityName, parser.packageNames, parser.webDomains, applicationContext, "/autofill", null)
         //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
-        val pendingIntent = PendingIntent.getActivity(
-                this,
-                1230,
-                startAuthIntent,
-                PendingIntent.FLAG_CANCEL_CURRENT
-        )
+        val pendingIntent: PendingIntent
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            pendingIntent = PendingIntent.getActivity(
+                    this,
+                    1230,
+                    startAuthIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+        } else {
+            @SuppressLint("UnspecifiedImmutableFlag")
+            pendingIntent = PendingIntent.getActivity(
+                    this,
+                    1230,
+                    startAuthIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT
+            )
+        }
         val intentSender: IntentSender = pendingIntent.intentSender
 
         logger.debug { "startIntent:$startAuthIntent (${startAuthIntent.extras}) - sender: $intentSender" }
