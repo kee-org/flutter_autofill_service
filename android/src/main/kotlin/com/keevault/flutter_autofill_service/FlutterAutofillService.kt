@@ -83,12 +83,16 @@ class FlutterAutofillService : AutofillService() {
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()
                 .setClientState(clientState)
 
-        val offerToSave = autofillPreferenceStore.autofillPreferences.enableSaving
+        val offerToSave = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 && autofillPreferenceStore.autofillPreferences.enableSaving
+        var saveInfoWasSet = false;
 
         if (offerToSave) {
         val (autoFillIdUsernameGuessed, autoFillIdPasswordGuessed) = SaveHelper.guessAutofillIdsForSave(parser, ArrayList(autoFillIds))
         val saveInfo = createSaveInfo(clientState, autoFillIdUsernameGuessed, autoFillIdPasswordGuessed, null, null)
-        saveInfo?.let {fillResponseBuilder.setSaveInfo(it)}
+        saveInfo?.let {
+            fillResponseBuilder.setSaveInfo(it)
+            saveInfoWasSet = true;
+        }
         }
 
         // Do not launch Kee Vault if no password fields are found, unless a temporary flag is
@@ -96,7 +100,8 @@ class FlutterAutofillService : AutofillService() {
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty()) {
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
             if (!autofillPreferenceStore.autofillPreferences.enableDebug) {
-                callback.onSuccess(fillResponseBuilder.build())
+                val response = if (saveInfoWasSet) fillResponseBuilder.build() else null
+                callback.onSuccess(response)
                 return
             }
             useLabel = "Debug: No password fields detected ($detectedFields total)."

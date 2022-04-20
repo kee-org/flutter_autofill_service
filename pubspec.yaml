@@ -1,6 +1,6 @@
 name: flutter_autofill_service
 description: Integrate Flutter with platform autofill services. Inspired by similar autofill_service package.
-version: 0.12.2
+version: 0.12.3
 author: Kee Vault Ltd
 homepage: https://github.com/kee_org/flutter_autofill_service
 
