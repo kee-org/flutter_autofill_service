@@ -83,7 +83,7 @@ class FlutterAutofillService : AutofillService() {
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()
                 .setClientState(clientState)
 
-        val offerToSave = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 && autofillPreferenceStore.autofillPreferences.enableSaving
+        val offerToSave = autofillPreferenceStore.autofillPreferences.enableSaving
         var saveInfoWasSet = false;
 
         if (offerToSave) {
