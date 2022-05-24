@@ -521,11 +521,11 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     }
 
 
-    override fun onNewIntent(intent: Intent?): Boolean {
+    override fun onNewIntent(intent: Intent): Boolean {
         lastIntent = intent
         logger.info {
             "We got a new intent. $intent (extras: ${
-                intent?.extras?.keySet()?.map {
+                intent.extras?.keySet()?.map {
                     it to intent.extras?.get(
                             it
                     )

@@ -40,7 +40,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance!.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     _updateStatus();
   }
 
@@ -59,7 +59,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance!.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -74,7 +74,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     _logger.info(
-        'Building AppState. defaultRouteName:${WidgetsBinding.instance!.window.defaultRouteName}');
+        'Building AppState. defaultRouteName:${WidgetsBinding.instance.window.defaultRouteName}');
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
