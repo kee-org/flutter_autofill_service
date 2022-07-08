@@ -1,6 +1,6 @@
 name: flutter_autofill_service
 description: Integrate Flutter with platform autofill services. Inspired by similar autofill_service package.
-version: 0.13.2
+version: 0.14.0
 author: Kee Vault Ltd
 homepage: https://github.com/kee_org/flutter_autofill_service
 
@@ -23,13 +23,11 @@ dev_dependencies:
 
 # The following section is specific to Flutter.
 flutter:
-  # This section identifies this Flutter project as a plugin project.
-  # The androidPackage and pluginClass identifiers should not ordinarily
-  # be modified. They are used by the tooling to maintain consistency when
-  # adding or updating assets for this project.
   plugin:
-    androidPackage: com.keevault.flutter_autofill_service
-    pluginClass: FlutterAutofillPlugin
+    platforms:
+      android:
+        package: com.keevault.flutter_autofill_service
+        pluginClass: FlutterAutofillPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
