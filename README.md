@@ -34,9 +34,8 @@ If you'd like to see this demonstrated in a real world example app, take a look 
 * Investigate IME integration support for Android 11+ (we started this but currently there is an Android bug which prevents the use of IME with an authentication step so are not sure if it is worthwhile proceeding with this alternative approach to Android match presentation to users).
 * Find out why Android Autofill examples suggest we handle focussed things in a special way (we follow their guidance and append " (focussed)" to the visible title but rarely see this appear in real usage and we don't understand if there is any notable significance or something extra we should be doing).
 * Help library consumers determine if a save request from the user has already been handled or not (currently consumers need to track this themselves and some edge cases involving intentional repeat actions from users may cause a little confusion).
-* See if we can release it on the public flutter libraries website.
 
-Only Android is supported but maybe desktop or web support can be included one day, open an issue or PR if you have any ideas on what form that support might take. iOS (at least as of v15) does nto support autofilling via a Dart/Flutter plugin (it must be a native Extension instead) so there is no support planned for that platform.
+Only Android is supported but maybe desktop or web support can be included one day, open an issue or PR if you have any ideas on what form that support might take. iOS (at least as of v15) does not support autofilling via a Dart/Flutter plugin (it must be a native Extension instead) so there is no support planned for that platform.
 
 ## Contributing
 
