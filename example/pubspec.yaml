@@ -12,11 +12,10 @@ dependencies:
   logging_appenders: ^1.0.0
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
-
   flutter_autofill_service:
     path: ../
+  flutter_test:
+    sdk: flutter
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

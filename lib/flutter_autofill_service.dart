@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'package:universal_platform/universal_platform.dart';
+
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 final _logger = Logger('flutter_autofill_service');
 
@@ -12,9 +13,6 @@ enum AutofillServiceStatus {
 }
 
 class PwDataset {
-  String label;
-  String username;
-  String password;
   PwDataset({
     /*required*/
     required this.label,
@@ -23,6 +21,9 @@ class PwDataset {
     /*required*/
     required this.password,
   });
+  String label;
+  String username;
+  String password;
 }
 
 class AutofillPreferences {
