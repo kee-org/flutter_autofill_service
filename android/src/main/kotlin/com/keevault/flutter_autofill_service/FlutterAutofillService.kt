@@ -204,11 +204,19 @@ class FlutterAutofillService : AutofillService() {
             val parser = AssistStructureParser(context.structure)
             val usernameNode = parser.findNodeByAutofillId(usernameId)
             val passwordNode = parser.findNodeByAutofillId(passwordId)
-            if (username == null) {
-                usernameNode?.let { username = it.autofillValue?.textValue.toString() }
+            try {
+                if (username == null) {
+                    usernameNode?.let { username = it.autofillValue?.textValue.toString() }
+                }
+            } catch (ex: IllegalStateException) {
+                logger.warn("username autofill value was not text.")
             }
-            if (password == null) {
-                passwordNode?.let { password = it.autofillValue?.textValue.toString() }
+            try {
+                if (password == null) {
+                    passwordNode?.let { password = it.autofillValue?.textValue.toString() }
+                }
+            } catch (ex: IllegalStateException) {
+                logger.warn("password autofill value was not text.")
             }
             if (packageNames == null) {
                 packageNames = parser.packageNames
