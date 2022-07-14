@@ -63,11 +63,6 @@ class AutofillService {
     return result ?? false;
   }
 
-  Future<bool> get hasEnabledAutofillServices async {
-    return (await _channel.invokeMethod<bool>('hasEnabledAutofillServices')) ==
-        true;
-  }
-
   Future<bool> get fillRequestedAutomatic async {
     return (await _channel.invokeMethod<bool>('fillRequestedAutomatic')) ==
         true;
@@ -78,8 +73,7 @@ class AutofillService {
         true;
   }
 
-//TODO: Change to getter for consistency with other data access points above?
-  Future<AutofillMetadata?> getAutofillMetadata() async {
+  Future<AutofillMetadata?> get autofillMetadata async {
     final result = await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getAutofillMetadata');
     _logger.fine(
@@ -90,7 +84,7 @@ class AutofillService {
     return AutofillMetadata.fromJson(result);
   }
 
-  Future<AutofillServiceStatus> status() async {
+  Future<AutofillServiceStatus> get status async {
     if (!UniversalPlatform.isAndroid) {
       return AutofillServiceStatus.unsupported;
     }
@@ -103,6 +97,16 @@ class AutofillService {
     } else {
       return AutofillServiceStatus.disabled;
     }
+  }
+
+  Future<AutofillPreferences> get preferences async {
+    final json =
+        await (_channel.invokeMapMethod<String, dynamic>('getPreferences'));
+    _logger.fine('Got preferences $json');
+    if (json == null) {
+      return AutofillPreferences(enableDebug: false);
+    }
+    return AutofillPreferences.fromJson(json);
   }
 
   Future<bool> requestSetAutofillService() async {
@@ -136,16 +140,6 @@ class AutofillService {
 
   Future<void> disableAutofillServices() async {
     return await _channel.invokeMethod('disableAutofillServices');
-  }
-
-  Future<AutofillPreferences> getPreferences() async {
-    final json =
-        await (_channel.invokeMapMethod<String, dynamic>('getPreferences'));
-    _logger.fine('Got preferences $json');
-    if (json == null) {
-      return AutofillPreferences(enableDebug: false);
-    }
-    return AutofillPreferences.fromJson(json);
   }
 
   Future<void> setPreferences(AutofillPreferences preferences) async {

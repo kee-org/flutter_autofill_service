@@ -30,7 +30,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  bool? _hasEnabledAutofillServices;
+  AutofillServiceStatus? _status;
   AutofillMetadata? _autofillMetadata;
   bool? _fillRequestedAutomatic;
   bool? _fillRequestedInteractive;
@@ -46,14 +46,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   // Platform messages are asynchronous, so we initialize in an async method.
   Future<void> _updateStatus() async {
-    _hasEnabledAutofillServices =
-        await AutofillService().hasEnabledAutofillServices;
-    _autofillMetadata = await AutofillService().getAutofillMetadata();
+    _status = await AutofillService().status;
+    _autofillMetadata = await AutofillService().autofillMetadata;
     _saveRequested = _autofillMetadata?.saveInfo != null;
     _fillRequestedAutomatic = await AutofillService().fillRequestedAutomatic;
     _fillRequestedInteractive =
         await AutofillService().fillRequestedInteractive;
-    _preferences = await AutofillService().getPreferences();
+    _preferences = await AutofillService().preferences;
     setState(() {});
   }
 
@@ -87,8 +86,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               Text(widget.launchedByAutofillService
                   ? 'Autofill launch'
                   : 'Standard launch'),
-              Text(
-                  '\nhasEnabledAutofillServices: $_hasEnabledAutofillServices\n'),
+              Text('\nStatus: $_status\n'),
               Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
               Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
               Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
