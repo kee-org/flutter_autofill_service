@@ -13,6 +13,10 @@ object SaveHelper {
         if (autoFillIdPasswordGuessed == null && autoFillIdUsernameGuessed == null && autoFillIdUsernameMatched == null) {
             return null
         }
+
+        // AutoFillIds from the full entry matching lookup process take precedence over those that we guessed with no
+        // additional context but we may be able to improve those guesses in future so we log that situation for
+        // use in any future specific diagnosis operation
         if (autoFillIdUsernameMatched?.let { autoFillIdUsernameGuessed != null && it != autoFillIdUsernameGuessed } == true) {
             logger.warn("AutofillId of matched entry username differs from our guessed ID")
         }
