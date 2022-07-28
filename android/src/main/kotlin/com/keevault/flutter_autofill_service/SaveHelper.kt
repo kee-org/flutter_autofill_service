@@ -54,8 +54,15 @@ object SaveHelper {
     }
 
     fun guessAutofillIdsForSave(parser: AssistStructureParser, autofillIds: ArrayList<AutofillId>?): Pair<AutofillId?, AutofillId?> {
-        val usernameId = parser.fieldIds[AutofillInputType.UserName]?.maxByOrNull { it.heuristic.weight }?.autofillId ?: parser.fieldIds[AutofillInputType.Email]?.maxByOrNull { it.heuristic.weight }?.autofillId
-        val passwordId = parser.fieldIds[AutofillInputType.Password]?.maxByOrNull { it.heuristic.weight }?.autofillId
+        // If both new password and existing password fields are found in the same app view, we 
+        // guess that the new password field is more likely to be the best one to use but real
+        // world examples will be needed before we know if this is reasonable. Hopefully
+        // no apps include both of these in a single view anyway!
+        val usernameId = parser.fieldIds[AutofillInputType.NewUserName]?.maxByOrNull { it.heuristic.weight }?.autofillId
+            ?: parser.fieldIds[AutofillInputType.UserName]?.maxByOrNull { it.heuristic.weight }?.autofillId
+            ?: parser.fieldIds[AutofillInputType.Email]?.maxByOrNull { it.heuristic.weight }?.autofillId
+        val passwordId = parser.fieldIds[AutofillInputType.NewPassword]?.maxByOrNull { it.heuristic.weight }?.autofillId
+            ?: parser.fieldIds[AutofillInputType.Password]?.maxByOrNull { it.heuristic.weight }?.autofillId
         return Pair(usernameId, passwordId)
 
     }

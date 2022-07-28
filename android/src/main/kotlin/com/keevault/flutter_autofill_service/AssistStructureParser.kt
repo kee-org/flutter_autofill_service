@@ -253,11 +253,6 @@ class AssistStructureParser(structure: AssistStructure) {
 
     private fun matchedFieldsFromHeuristics(type: AutofillInputType, viewNode: ViewNode, autofillId: AutofillId): List<MatchedField> {
         val filtered = type.heuristics
-                //TODO: Maybe we can filter here to remove newUsername/newPassword?
-                // But probably it will prevent the save feature from working.
-                // Perhaps instead can create a new AutoFillInputType of NewPassword
-                // and give it a slightly different set of heuristics?
-                //.filter { !(viewNode.autofillHints?.contains("newPassword") ?: false) }
 
                 // filtering here means we have a fieldId entry but with an empty list of MatchedFields
                 .filter { viewNode.autofillType != View.AUTOFILL_TYPE_NONE }

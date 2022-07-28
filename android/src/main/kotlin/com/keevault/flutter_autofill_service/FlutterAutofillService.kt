@@ -16,6 +16,7 @@ import android.os.TransactionTooLargeException
 import android.service.autofill.*
 import android.service.autofill.FillRequest.FLAG_COMPATIBILITY_MODE_REQUEST
 import android.view.View
+import android.view.View.AUTOFILL_TYPE_TEXT
 import android.view.autofill.AutofillId
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 import com.squareup.moshi.JsonClass
@@ -291,6 +292,8 @@ data class SaveInfoMetadata(
 
 private val usernameHints = listOf(
         "username",
+        "user",
+        "uname",
         "e-mail",
         "mail",
         "login",
@@ -298,6 +301,7 @@ private val usernameHints = listOf(
 
 private val passwordHints = listOf(
         "password",
+        "pass",
         "passwort",
         "pswd",
 )
@@ -305,7 +309,15 @@ private val passwordHints = listOf(
 private val blockHints = listOf(
         "search",
         "find",
+        "filter",
         "recipient",
+)
+
+private val otpHints = listOf(
+    "totp",
+    "2fa",
+    "mfa",
+    "code",
 )
 
 data class AutofillHeuristic(
@@ -323,61 +335,92 @@ private fun MutableList<AutofillHeuristic>.heuristic(
 ) =
         add(AutofillHeuristic(weight, message, block ?: false, predicate))
 
+private fun MutableList<AutofillHeuristic>.autofillHint(weight: Int, hint: String, block: Boolean? = false) =
+        heuristic(weight, "aHint", block) { autofillHints?.contains(hint) == true }
 
-@TargetApi(Build.VERSION_CODES.O)
-private fun MutableList<AutofillHeuristic>.autofillHint(weight: Int, hint: String) =
-        heuristic(weight) { autofillHints?.contains(hint) == true }
-
-@TargetApi(Build.VERSION_CODES.O)
 private fun MutableList<AutofillHeuristic>.nonAutofillHint(weight: Int, matches: List<String>, block: Boolean? = false) =
         heuristic(weight, "naHint", block) { hint?.lowercase()?.let { h -> matches.any { it in h} } ?: false }
 
-@TargetApi(Build.VERSION_CODES.O)
-private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, match: String, block: Boolean? = false) =
+private fun MutableList<AutofillHeuristic>.idEntryExact(weight: Int, match: String, block: Boolean? = false) =
         heuristic(weight, "id=$match", block) { idEntry == match }
 
-@TargetApi(Build.VERSION_CODES.O)
 private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, matches: List<String>, block: Boolean? = false) =
         heuristic(weight, "id", block) { idEntry?.lowercase()?.let { i -> matches.any { it in i} } ?: false }
 
-@TargetApi(Build.VERSION_CODES.O)
 private fun MutableList<AutofillHeuristic>.htmlAttribute(weight: Int, attr: String, value: String) =
         heuristic(weight, "html[$attr=$value]") { htmlInfo?.attributes?.firstOrNull { it.first == attr && it.second == value } != null }
 
-@TargetApi(Build.VERSION_CODES.O)
+private fun MutableList<AutofillHeuristic>.contentDescription(weight: Int, matches: List<String>, block: Boolean? = false) =
+    heuristic(weight, "contentDescription", block) { contentDescription?.toString()?.lowercase()?.let { cd -> matches.contains(cd) } ?: false }
+
 private fun MutableList<AutofillHeuristic>.defaults(hint: String, match: String) {
+    // Could consider support for AUTOFILL_TYPE_DATE or AUTOFILL_TYPE_LIST in future if these are
+    // ever used for things like Date of Birth or a pick-one-char-from-password dropdown but will
+    // need to see real world examples of actual usage first.
+    heuristic(10000, "not text", true) { autofillType != AUTOFILL_TYPE_TEXT}
+    autofillHint(10000, "notApplicable", true)
+    nonAutofillHint(10000, blockHints, true)
+    idEntry(10000, blockHints, true)
     autofillHint(900, hint)
-    idEntry(800, match)
-    heuristic(700) { idEntry?.lowercase(Locale.ROOT)?.contains(match) == true }
+    idEntryExact(800, match)
+    idEntry(700, listOf(match))
 }
 
-@TargetApi(Build.VERSION_CODES.O)
 enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
     Password(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_PASSWORD, "password")
+        autofillHint(10000, "newPassword", true)
+        autofillHint(10000, "newUsername", true)
         htmlAttribute(400, "type", "password")
         heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
         heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
         heuristic(238, "text variation visible password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
         nonAutofillHint(200, passwordHints)
-        nonAutofillHint(10000, blockHints, true)
-        idEntry(10000, blockHints, true)
+        contentDescription(300, passwordHints)
     }),
     Email(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_EMAIL_ADDRESS, "mail")
+        autofillHint(10000, "newPassword", true)
+        autofillHint(10000, "newUsername", true)
+        //TODO: In future might want to consider Email enum value both an existing and new username match?
         htmlAttribute(400, "type", "mail")
         htmlAttribute(300, "name", "mail")
         heuristic(250, "hint=mail") { hint?.lowercase(Locale.ROOT)?.contains("mail") == true }
-        nonAutofillHint(10000, blockHints, true)
-        idEntry(10000, blockHints, true)
     }),
     UserName(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_USERNAME, "user")
+        autofillHint(10000, "newPassword", true)
+        autofillHint(10000, "newUsername", true)
         htmlAttribute(400, "name", "user")
         htmlAttribute(400, "name", "username")
         nonAutofillHint(300, usernameHints)
-        nonAutofillHint(10000, blockHints, true)
-        idEntry(10000, blockHints, true)
+        contentDescription(300, usernameHints)
+    }),
+    TOTP(mutableListOf<AutofillHeuristic>().apply {
+        defaults("2faAppOTPCode", "totp")
+        autofillHint(10000, "newPassword", true)
+        autofillHint(10000, "newUsername", true)
+        htmlAttribute(400, "name", "totp")
+        htmlAttribute(400, "name", "code")
+        nonAutofillHint(300, otpHints)
+    }),
+    NewUserName(mutableListOf<AutofillHeuristic>().apply {
+        defaults("newUsername", "user")
+        autofillHint(10000, "username", true)
+        htmlAttribute(400, "name", "user")
+        htmlAttribute(400, "name", "username")
+        nonAutofillHint(300, usernameHints)
+        contentDescription(300, usernameHints)
+    }),
+    NewPassword(mutableListOf<AutofillHeuristic>().apply {
+        defaults("newPassword", "password")
+        autofillHint(10000, "password", true)
+        htmlAttribute(400, "type", "password")
+        heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
+        heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
+        heuristic(238, "text variation visible password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
+        nonAutofillHint(200, passwordHints)
+        contentDescription(300, passwordHints)
     }),
 }
 

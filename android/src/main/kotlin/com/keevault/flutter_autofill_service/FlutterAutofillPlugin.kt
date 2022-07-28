@@ -12,6 +12,7 @@ import android.content.res.Resources
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.provider.Settings
 import android.service.autofill.Dataset
 import android.service.autofill.FillResponse
@@ -19,9 +20,7 @@ import android.view.autofill.AutofillId
 import android.view.autofill.AutofillManager
 import android.view.autofill.AutofillManager.EXTRA_AUTHENTICATION_RESULT
 import android.view.autofill.AutofillValue
-import android.view.inputmethod.InlineSuggestionsRequest
 import android.widget.RemoteViews
-import androidx.annotation.RequiresApi
 import com.keevault.flutter_autofill_service.IntentHelpers.getStartIntent
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -301,17 +300,20 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                     return@allIds
                                 }
 
-                                // We may select different autofillIDs for each dataset (although unlikely) but for save purposes, Android only allows us to select one set of autofillIDs. We pick the first one that contains any match. Again, there is a small chance this will differ from the set we select when we have no data available but there aren't likely to be many situations where that actually happens.
+                                // We may select different autofillIDs for each dataset (although unlikely) but for save purposes,
+                                // Android only allows us to select one set of autofillIDs. We pick the first one that contains
+                                // any match. Again, there is a small chance this will differ from the set we select when we have
+                                // no data available but there aren't likely to be many situations where that actually happens.
                                 if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
                                     autoFillIdPasswordMatched = field.autofillId
-                                } else if (autoFillIdUsernameMatched != null && type != AutofillInputType.Password) {
+                                } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
                                     autoFillIdUsernameMatched = field.autofillId
                                 }
 
-                                val autoFillValue = if (type == AutofillInputType.Password) {
-                                    pw.password
-                                } else {
-                                    pw.username
+                                val autoFillValue = when (type) {
+                                    AutofillInputType.Password, AutofillInputType.NewPassword -> pw.password
+                                    AutofillInputType.TOTP -> ""
+                                    else -> pw.username
                                 }
                                 val nonInlineResponse = RemoteViews(
                                         context.packageName,
@@ -493,10 +495,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                     return@allIds
                 }
 
-                val autoFillValue = if (type == AutofillInputType.Password) {
-                    pwDataset.password
-                } else {
-                    pwDataset.username
+                val autoFillValue = when (type) {
+                    AutofillInputType.Password, AutofillInputType.NewPassword -> pwDataset.password
+                    AutofillInputType.TOTP -> ""
+                    else -> pwDataset.username
                 }
                 setValue(
                         field.autofillId,
