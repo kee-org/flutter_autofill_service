@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.TransactionTooLargeException
 import android.service.autofill.*
+import android.service.autofill.FillRequest.FLAG_COMPATIBILITY_MODE_REQUEST
 import android.view.View
 import android.view.autofill.AutofillId
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
@@ -80,6 +81,10 @@ class FlutterAutofillService : AutofillService() {
         var useLabel = unlockLabel
         val clientState = Bundle()
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            clientState.putBoolean("isCompatMode", request.flags.hasFlag(FLAG_COMPATIBILITY_MODE_REQUEST))
+        }
+
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()
                 .setClientState(clientState)
 
@@ -95,7 +100,7 @@ class FlutterAutofillService : AutofillService() {
         }
         }
 
-        // Do not launch Kee Vault if no password fields are found, unless a temporary flag is
+        // Do not launch main Flutter app if no password fields are found, unless a temporary flag is
         // enabled to aid debugging why no such field was detected.
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty()) {
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
@@ -225,10 +230,11 @@ class FlutterAutofillService : AutofillService() {
                 webDomains = parser.webDomains
             }
         }
+        val isCompatMode = if (clientState.containsKey("isCompatMode")) clientState.getBoolean("isCompatMode") else null
 
         val startIntent = IntentHelpers.getStartIntent(activityName, packageNames
                 ?: setOf(), webDomains
-                ?: setOf(), applicationContext, "/autofill_save", SaveInfoMetadata(username, password))
+                ?: setOf(), applicationContext, "/autofill_save", SaveInfoMetadata(username, password, isCompatMode))
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(startIntent)
 
@@ -263,7 +269,8 @@ data class AutofillMetadata(
 @JsonClass(generateAdapter = true)
 data class SaveInfoMetadata(
         val username: String?,
-        val password: String?
+        val password: String?,
+        val isCompatMode: Boolean?
 ) {
     companion object {
         const val EXTRA_NAME = "SaveInfoMetadata"

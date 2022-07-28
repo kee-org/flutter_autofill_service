@@ -190,16 +190,18 @@ class AutofillMetadata {
 }
 
 class SaveInfoMetadata {
-  SaveInfoMetadata({this.username, this.password});
+  SaveInfoMetadata({this.username, this.password, this.isCompatMode});
 
   factory SaveInfoMetadata.fromJson(Map<dynamic, dynamic> json) =>
       SaveInfoMetadata(
         username: json['username'] as String?,
         password: json['password'] as String?,
+        isCompatMode: json['isCompatMode'] as bool?,
       );
 
   final String? username;
   final String? password;
+  final bool? isCompatMode;
 
   @override
   String toString() => toJson().toString();
@@ -207,6 +209,7 @@ class SaveInfoMetadata {
   Map<String, Object> toJson() => {
         if (username != null) 'username': username!,
         if (password != null) 'password': password!,
+        if (isCompatMode != null) 'isCompatMode': isCompatMode!,
       };
 }
 
