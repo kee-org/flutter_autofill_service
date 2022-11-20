@@ -32,9 +32,6 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
-    lintOptions {
-        disable 'InvalidPackage'
-    }
 
     defaultConfig {
         applicationId "com.keevault.flutter_autofill_service_example"
@@ -52,6 +49,10 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    lint {
+        disable 'InvalidPackage'
+    }
+    namespace 'com.keevault.flutter_autofill_service_example'
 }
 
 flutter {
