@@ -69,7 +69,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             "hasAutofillServicesSupport" ->
                 result.success(true)
             "hasEnabledAutofillServices" ->
-                result.success(autofillManager.hasEnabledAutofillServices())
+                result.success(try { autofillManager.hasEnabledAutofillServices() } catch (e: RuntimeException) { false })
             "disableAutofillServices" -> {
                 autofillManager.disableAutofillServices()
                 result.success(null)
