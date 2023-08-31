@@ -136,7 +136,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 result.success(true)
             }
             "onSaveComplete" -> {
-                //TODO: Perhaps clearing the lastIntent is sensible at this stage? Might simplify consumer's code for checking if a save request has already been handled.
+                // Clearing the lastIntent allows the consumer's code to know if a save request has already been handled.
+                lastIntent = null
                 activity?.moveTaskToBack(true)
             }
             else -> result.notImplemented()
