@@ -10,7 +10,7 @@
 //import android.widget.RemoteViews
 //import androidx.fragment.app.FragmentActivity
 //import kotlinx.android.synthetic.main.activity_dummy_test.*
-//import mu.KotlinLogging
+//import io.github.oshai.kotlinlogging.KotlinLogging
 //
 //private val logger = KotlinLogging.logger {}
 //

@@ -1,8 +1,6 @@
-group 'com.keevault.flutter_autofill_service'
-version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.8.0'
+    ext.kotlin_version = '1.8.22'
     repositories {
         google()
         mavenCentral()
@@ -14,6 +12,13 @@ buildscript {
     }
 }
 
+plugins {
+    id 'com.google.devtools.ksp' version '1.8.22-1.0.11' apply false
+}
+
+group 'com.keevault.flutter_autofill_service'
+version '1.0-SNAPSHOT'
+
 rootProject.allprojects {
     repositories {
         google()
@@ -23,7 +28,7 @@ rootProject.allprojects {
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
+apply plugin: 'com.google.devtools.ksp'
 
 android {
     compileSdk 33
@@ -32,7 +37,7 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
     defaultConfig {
-        minSdkVersion 26
+        minSdkVersion 29
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     lintOptions {
@@ -49,16 +54,19 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
     implementation 'androidx.autofill:autofill:1.1.0'
-    implementation "androidx.annotation:annotation:1.6.0"
+    implementation "androidx.annotation:annotation:1.7.0"
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.google.android.material:material:1.8.0'
-    implementation "io.github.microutils:kotlin-logging:1.7.6"
+    implementation 'io.github.oshai:kotlin-logging-jvm:5.1.0'
+    implementation 'org.tinylog:tinylog-api:2.6.2'
+    implementation 'org.tinylog:tinylog-impl:2.6.2'
+    implementation 'org.tinylog:slf4j-tinylog:2.6.2'
 
-    implementation 'androidx.core:core-ktx:1.9.0'
+    implementation 'androidx.core:core-ktx:1.10.1'
 
     // json deserialize
     implementation "com.squareup.moshi:moshi:1.14.0"
     implementation "com.squareup.moshi:moshi-kotlin:1.13.0"
-    kapt("com.squareup.moshi:moshi-kotlin-codegen:1.14.0")
+    ksp "com.squareup.moshi:moshi-kotlin-codegen:1.14.0"
 }

@@ -21,12 +21,16 @@ object InlinePresentationHelper {
     fun viewsWithAuth(text: String,
                       inlinePresentationSpec: InlinePresentationSpec,
                       pendingIntent: PendingIntent,
-                      context: Context): InlinePresentation? {
+                      context: Context,
+                      @DrawableRes drawableId: Int = R.drawable.ic_lock_24dp): InlinePresentation? {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_lock_24dp, pendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, pendingIntent, context)
         return if (slice != null) {
+            // We don't pin, otherwise our explanatory text can't be shown. Otherwise I'm not sure
+            // if there is any behavioural difference. It certainly doesn't help with the keyboard
+            // auto-hiding all the time.
             InlinePresentation(slice, inlinePresentationSpec, false)
         } else null
     }
@@ -34,17 +38,34 @@ object InlinePresentationHelper {
     fun viewsWithNoAuth(text: String,
                         inlinePresentationSpec: InlinePresentationSpec,
                         pendingIntent: PendingIntent?,
-                        context: Context): InlinePresentation? {
+                        context: Context,
+                        isPinned: Boolean,
+                        @DrawableRes drawableId: Int = R.drawable.ic_person_24dp): InlinePresentation? {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
 
-        // Not sure why but InlinePresentation API requires a pending intent so we include a dummy one if none was supplied to us
-        val slice = createSlice(inlinePresentationSpec, text, null, R.drawable.ic_person_24dp, pendingIntent
-                ?: PendingIntent.getService(context, 0, Intent(),
-                        PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT), context)
+        // Not sure why but InlinePresentation API requires a pending intent (called attribution) so
+        // we include a dummy one if none was supplied to us.
+        @SuppressLint("UnspecifiedImmutableFlag")
+        val chosenPendingIntent = pendingIntent ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.getService(
+                context,
+                0,
+                Intent(),
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+        } else {
+            PendingIntent.getService(
+                context,
+                0,
+                Intent(),
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        }
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, chosenPendingIntent, context)
         return if (slice != null) {
-            InlinePresentation(slice, inlinePresentationSpec, false)
+            InlinePresentation(slice, inlinePresentationSpec, isPinned)
         } else null
     }
 
@@ -62,7 +83,7 @@ object InlinePresentationHelper {
     }
 
     // .slice is apparently restricted, but all docs say it must be used so this lint is presumably 
-    // required due to an Android bug. Also per-line lint exceptions are not supported for some 
+    // required due to an Androidx bug. Also per-line lint exceptions are not supported for some
     // reason so we have to take the risk on the entire method being ignored.
     @SuppressLint("RestrictedApi")
     @RequiresApi(Build.VERSION_CODES.R)
