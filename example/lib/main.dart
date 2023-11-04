@@ -90,16 +90,50 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
               Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
               Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
-              Text('Offer save enabled: ${_preferences?.enableSaving}\n'),
-              ElevatedButton(
-                child: const Text('Toggle Save enabled setting'),
-                onPressed: () async {
-                  await AutofillService().setPreferences(AutofillPreferences(
-                    enableDebug: _preferences!.enableDebug,
-                    enableSaving: !_preferences!.enableSaving,
-                  ));
-                  await _updateStatus();
-                },
+              Text(
+                  'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}\n\n'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Flexible(child: Text('Toggle: ')),
+                  ElevatedButton(
+                    child: const Text('Debug/Logging'),
+                    onPressed: () async {
+                      await AutofillService()
+                          .setPreferences(AutofillPreferences(
+                        enableDebug: !_preferences!.enableDebug,
+                        enableSaving: _preferences!.enableSaving,
+                        enableIMERequests: _preferences!.enableIMERequests,
+                      ));
+                      await _updateStatus();
+                    },
+                  ),
+                  ElevatedButton(
+                    child: const Text('Save'),
+                    onPressed: () async {
+                      await AutofillService()
+                          .setPreferences(AutofillPreferences(
+                        enableDebug: _preferences!.enableDebug,
+                        enableSaving: !_preferences!.enableSaving,
+                        enableIMERequests: _preferences!.enableIMERequests,
+                      ));
+                      await _updateStatus();
+                    },
+                  ),
+                  ElevatedButton(
+                    child: const Text('IME'),
+                    onPressed: () async {
+                      await AutofillService()
+                          .setPreferences(AutofillPreferences(
+                        enableDebug: _preferences!.enableDebug,
+                        enableSaving: _preferences!.enableSaving,
+                        enableIMERequests: !_preferences!.enableIMERequests,
+                      ));
+                      await _updateStatus();
+                    },
+                  ),
+                ],
               ),
               ElevatedButton(
                 child: const Text('requestSetAutofillService'),

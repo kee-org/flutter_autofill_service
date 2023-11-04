@@ -4,7 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import android.service.autofill.SaveInfo
 import android.view.autofill.AutofillId
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
@@ -18,10 +18,10 @@ object SaveHelper {
         // additional context but we may be able to improve those guesses in future so we log that situation for
         // use in any future specific diagnosis operation
         if (autoFillIdUsernameMatched?.let { autoFillIdUsernameGuessed != null && it != autoFillIdUsernameGuessed } == true) {
-            logger.warn("AutofillId of matched entry username differs from our guessed ID")
+            logger.warn { "AutofillId of matched entry username differs from our guessed ID" }
         }
         if (autoFillIdPasswordMatched?.let { autoFillIdPasswordGuessed != null && it != autoFillIdPasswordGuessed } == true) {
-            logger.warn("AutofillId of matched entry password differs from our guessed ID")
+            logger.warn { "AutofillId of matched entry password differs from our guessed ID" }
         }
 
         val usernameId = clientState.getParcelable("usernameId") ?: autoFillIdUsernameMatched ?: autoFillIdUsernameGuessed
@@ -53,7 +53,7 @@ object SaveHelper {
         return builder.build()
     }
 
-    fun guessAutofillIdsForSave(parser: AssistStructureParser, autofillIds: ArrayList<AutofillId>?): Pair<AutofillId?, AutofillId?> {
+    fun guessAutofillIdsForSave(parser: AssistStructureParser): Pair<AutofillId?, AutofillId?> {
         // If both new password and existing password fields are found in the same app view, we 
         // guess that the new password field is more likely to be the best one to use but real
         // world examples will be needed before we know if this is reasonable. Hopefully

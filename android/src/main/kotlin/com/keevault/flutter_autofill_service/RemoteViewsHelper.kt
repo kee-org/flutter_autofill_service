@@ -19,13 +19,26 @@ object RemoteViewsHelper {
         return simpleRemoteViews(packageName, text, drawableId)
     }
 
+    fun viewsWithNoAuthOptionalIcon(packageName: String, text: String, @DrawableRes drawableId: Int?): RemoteViews {
+        if (drawableId != null) {
+            return simpleRemoteViews(packageName, text, drawableId)
+        }
+        val presentation = RemoteViews(
+            packageName,
+            android.R.layout.simple_list_item_1
+        ).apply {
+            setTextViewText(android.R.id.text1, text)
+        }
+        return presentation
+    }
+
     private fun simpleRemoteViews(
         packageName: String, remoteViewsText: String,
         @DrawableRes drawableId: Int
     ): RemoteViews {
         val presentation = RemoteViews(
-                packageName,
-                R.layout.multidataset_service_list_item
+            packageName,
+            R.layout.multidataset_service_list_item
         )
         presentation.setTextViewText(R.id.text, remoteViewsText)
         val icon = Icon.createWithResource(packageName, drawableId)

@@ -7,7 +7,7 @@ import android.view.*
 import android.view.autofill.AutofillId
 import androidx.annotation.RequiresApi
 import com.squareup.moshi.JsonClass
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import android.app.assist.AssistStructure.ViewNode
 
 private val logger = KotlinLogging.logger {}
@@ -171,7 +171,6 @@ class AssistStructureParser(structure: AssistStructure) {
     @TargetApi(Build.VERSION_CODES.O)
     private fun traverseNode(viewNode: ViewNode, depth: String) {
         allNodes.add(viewNode)
-//        logger.debug { "We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
         val debug =
                 (listOf(
                         viewNode::getId,
@@ -202,18 +201,16 @@ class AssistStructureParser(structure: AssistStructure) {
                     emptyList()
                 })
                         .map { it.name.replaceFirst("get", "") to it.invoke()?.debugToString() }
-//        logger.debug { "$depth ` ViewNode: $debug ---- ${debug.toList()}" }
-        logger.debug { "$depth ` ViewNode: ${debug.filter { it.second != null }.toList()}" }
-        logger.debug { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
-//        logger.debug { "$depth ` We got node: ${viewNode.toStringReflective()}" }
+        logger.trace { "$depth ` ViewNode: ${debug.filter { it.second != null }.toList()}" }
+        logger.trace { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
 
         if (viewNode.autofillHints?.isNotEmpty() == true) {
             // If the client app provides autofill hints, you can obtain them using:
-            logger.debug { "$depth     autofillHints: ${viewNode.autofillHints?.contentToString()}" }
+            logger.trace { "$depth     autofillHints: ${viewNode.autofillHints?.contentToString()}" }
         } else {
             // Or use your own heuristics to describe the contents of a view
             // using methods such as getText() or getHint().
-            logger.debug { "$depth     viewNode no hints, text:${viewNode.text} and hint:${viewNode.hint} and inputType:${viewNode.inputType}" }
+            logger.trace { "$depth     viewNode no hints, text:${viewNode.text} and hint:${viewNode.hint} and inputType:${viewNode.inputType}" }
         }
 
         viewNode.idPackage?.let { idPackage ->
@@ -273,7 +270,7 @@ class AssistStructureParser(structure: AssistStructure) {
         val mapped = filtered
                 .takeWhile { !it.block }
                 .map { MatchedField(it, autofillId) }
-        logger.debug { "Filtered ${type.heuristics.count()} heuristics into ${filtered.count()} and extracted ${mapped.count()} MatchedFields after considering blocking heuristics" }
+        logger.trace { "Filtered ${type.heuristics.count()} heuristics into ${filtered.count()} and extracted ${mapped.count()} MatchedFields after considering blocking heuristics" }
         return mapped
     }
 

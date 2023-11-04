@@ -3,14 +3,13 @@ package com.keevault.flutter_autofill_service
 import android.content.*
 import androidx.core.content.edit
 import com.squareup.moshi.*
-import mu.KotlinLogging
-
-private val logger = KotlinLogging.logger {}
+import io.github.oshai.kotlinlogging.KotlinLogging
 
 @JsonClass(generateAdapter = true)
 data class AutofillPreferences(
         val enableDebug: Boolean = false,
-        val enableSaving: Boolean = true
+        val enableSaving: Boolean = true,
+        val enableIMERequests: Boolean = true
 ) {
 
     companion object {
@@ -60,7 +59,9 @@ class AutofillPreferenceStore private constructor(private val prefs: SharedPrefe
         private fun getInstance(prefs: SharedPreferences): AutofillPreferenceStore {
             synchronized(lock) {
                 return instance ?: {
-                    logger.debug { "Creating new AutofillPreferenceStore." }
+                    // We can't log properly becauase logger doesn't permit reconfiguration after
+                    // the first message is logged and we need to look up some configuration in the pref store
+                    println { "Creating new AutofillPreferenceStore." }
                     val ret = AutofillPreferenceStore(prefs)
                     instance = ret
                     ret

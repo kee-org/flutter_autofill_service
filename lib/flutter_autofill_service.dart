@@ -27,20 +27,26 @@ class PwDataset {
 }
 
 class AutofillPreferences {
-  AutofillPreferences({required this.enableDebug, this.enableSaving = true});
+  AutofillPreferences(
+      {required this.enableDebug,
+      this.enableSaving = true,
+      this.enableIMERequests = true});
 
   factory AutofillPreferences.fromJson(Map<dynamic, dynamic> json) =>
       AutofillPreferences(
         enableDebug: json['enableDebug'] as bool,
         enableSaving: json['enableSaving'] as bool? ?? true,
+        enableIMERequests: json['enableIMERequests'] as bool? ?? true,
       );
 
   final bool enableDebug;
   final bool enableSaving;
+  final bool enableIMERequests;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'enableDebug': enableDebug,
         'enableSaving': enableSaving,
+        'enableIMERequests': enableIMERequests,
       };
 }
 
@@ -77,7 +83,7 @@ class AutofillService {
     final result = await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getAutofillMetadata');
     _logger.fine(
-        'Got result for getAutofillMetadata $result (${result.runtimeType})');
+        'Got AutofillMetadata packageNames: ${result?['packageNames']}, webDomains: ${result?['webDomains']}, compatMode: ${result?['saveInfo']?['isCompatMode']}');
     if (result == null) {
       return null;
     }
