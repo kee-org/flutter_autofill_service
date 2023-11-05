@@ -142,17 +142,14 @@ class FlutterAutofillService : AutofillService() {
             }
         }
 
-        // Do not launch main Flutter app if no password fields are found, unless a temporary flag is
-        // enabled to aid debugging why no such field was detected.
-        // Or if user manually forced a fill to a non-password form
+        // Do not launch main Flutter app if no password fields are found,
+        // unless user manually forced a fill to a non-password form
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty() && !manuallyRequested) {
             val detectedFields = parser.fieldIds.flatMap { it.value }.size
-            if (!autofillPreferenceStore.autofillPreferences.enableDebug) {
-                val response = if (saveInfoWasSet) fillResponseBuilder.build() else null
-                callback.onSuccess(response)
-                return
-            }
-            useLabel = "Debug: No password fields detected ($detectedFields total)."
+            logger.info { "Debug: No password fields detected ($detectedFields total). Non-manual request so aborting." }
+            val response = if (saveInfoWasSet) fillResponseBuilder.build() else null
+            callback.onSuccess(response)
+            return
         }
 
         if (parser.packageNames.any { it in excludedPackages }) {
