@@ -478,7 +478,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             if (respondInline) presentationBuilder.setInlinePresentation(
                 viewsWithNoAuth(
                     "Fill me",
-                    inlineRequest!!.inlinePresentationSpecs.first(), null, context,false
+                    inlineRequest!!.inlinePresentationSpecs.first(), null, context,false,
                 )!!
             )
             if (isFillDialogRequest) presentationBuilder.setDialogPresentation(remoteViews())
