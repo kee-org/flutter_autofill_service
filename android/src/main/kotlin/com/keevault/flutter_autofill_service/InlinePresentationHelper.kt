@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.app.slice.Slice
 import android.content.Context
 import android.content.Intent
+import android.graphics.BlendMode
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.autofill.InlinePresentation
@@ -22,11 +23,12 @@ object InlinePresentationHelper {
                       inlinePresentationSpec: InlinePresentationSpec,
                       pendingIntent: PendingIntent,
                       context: Context,
-                      @DrawableRes drawableId: Int = R.drawable.ic_lock_24dp): InlinePresentation? {
+                      @DrawableRes drawableId: Int = R.drawable.ic_lock_24dp,
+                      tintIcon: Boolean): InlinePresentation? {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, pendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, pendingIntent, context)
         return if (slice != null) {
             // We don't pin, otherwise our explanatory text can't be shown. Otherwise I'm not sure
             // if there is any behavioural difference. It certainly doesn't help with the keyboard
@@ -40,7 +42,8 @@ object InlinePresentationHelper {
                         pendingIntent: PendingIntent?,
                         context: Context,
                         isPinned: Boolean,
-                        @DrawableRes drawableId: Int = R.drawable.ic_person_24dp): InlinePresentation? {
+                        @DrawableRes drawableId: Int = R.drawable.ic_person_24dp,
+                        tintIcon: Boolean = true): InlinePresentation? {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
@@ -63,7 +66,7 @@ object InlinePresentationHelper {
                 PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT
             )
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, chosenPendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, chosenPendingIntent, context)
         return if (slice != null) {
             InlinePresentation(slice, inlinePresentationSpec, isPinned)
         } else null
@@ -92,6 +95,7 @@ object InlinePresentationHelper {
             title: String,
             subtitle: String?,
             iconId: Int,
+            tintIcon: Boolean,
             pendingIntent: PendingIntent,
             context: Context
     ): Slice? {
@@ -112,8 +116,10 @@ object InlinePresentationHelper {
         if (iconId > 0) {
             val icon = Icon.createWithResource(context, iconId)
             if (icon != null) {
-                //TODO: If want to avoid tinting some icons such as favicons, logos, etc. we can use the line below
-                //icon.SetTintBlendMode(BlendMode.Dst);
+                // We want to avoid tinting some icons such as favicons, logos, etc.
+                if (!tintIcon) {
+                    icon.setTintBlendMode(BlendMode.DST);
+                }
                 builder.setStartIcon(icon)
             }
         }

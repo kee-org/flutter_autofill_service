@@ -209,7 +209,8 @@ class FlutterAutofillService : AutofillService() {
                 inlineRequest!!.inlinePresentationSpecs.first(),
                 pendingIntent,
                 this,
-                unlockDrawableId
+                unlockDrawableId,
+                false
             ) else null
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val presentationDialog = if (fillDialogRequested) presentationMenu else null

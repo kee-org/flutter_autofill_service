@@ -23,7 +23,7 @@ class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
         arguments: Array<Any>?
     ) {
         if (activeLevel <= level) {
-            super.log(depth + 1, tag, level, exception, formatter, obj, arguments ?: emptyArray<Object>())
+            super.log(depth + 1, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
         }
     }
 
@@ -37,7 +37,7 @@ class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
         arguments: Array<Any>?
     ) {
         if (activeLevel <= level) {
-            super.log(loggerClassName, tag, level, exception, formatter, obj, arguments ?: emptyArray<Object>())
+            super.log(loggerClassName, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
         }
     }
 
