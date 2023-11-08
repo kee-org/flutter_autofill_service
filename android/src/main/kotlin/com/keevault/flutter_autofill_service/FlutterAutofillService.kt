@@ -207,7 +207,7 @@ class FlutterAutofillService : AutofillService() {
             val presentationInline = if (respondInline) InlinePresentationHelper.viewsWithAuth(
                 useLabel,
                 inlineRequest!!.inlinePresentationSpecs.first(),
-                pendingIntent,
+                null,
                 this,
                 unlockDrawableId,
                 false

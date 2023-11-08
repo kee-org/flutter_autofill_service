@@ -21,14 +21,19 @@ object InlinePresentationHelper {
 
     fun viewsWithAuth(text: String,
                       inlinePresentationSpec: InlinePresentationSpec,
-                      pendingIntent: PendingIntent,
+                      pendingIntent: PendingIntent?,
                       context: Context,
                       @DrawableRes drawableId: Int = R.drawable.ic_lock_24dp,
                       tintIcon: Boolean): InlinePresentation? {
         if (Build.VERSION.SDK_INT < 30) {
             return null
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, pendingIntent, context)
+        // Not sure why but InlinePresentation API requires a pending intent (called attribution) so
+        // we include a dummy one if none was supplied to us.
+        @SuppressLint("UnspecifiedImmutableFlag")
+        val chosenPendingIntent = getAttributionPendingIntent(pendingIntent, context)
+
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, chosenPendingIntent, context)
         return if (slice != null) {
             // We don't pin, otherwise our explanatory text can't be shown. Otherwise I'm not sure
             // if there is any behavioural difference. It certainly doesn't help with the keyboard
@@ -51,7 +56,18 @@ object InlinePresentationHelper {
         // Not sure why but InlinePresentation API requires a pending intent (called attribution) so
         // we include a dummy one if none was supplied to us.
         @SuppressLint("UnspecifiedImmutableFlag")
-        val chosenPendingIntent = pendingIntent ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val chosenPendingIntent = getAttributionPendingIntent(pendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, chosenPendingIntent, context)
+        return if (slice != null) {
+            InlinePresentation(slice, inlinePresentationSpec, isPinned)
+        } else null
+    }
+
+    private fun getAttributionPendingIntent(
+        pendingIntent: PendingIntent?,
+        context: Context
+    ): PendingIntent =
+        pendingIntent ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.getService(
                 context,
                 0,
@@ -66,11 +82,6 @@ object InlinePresentationHelper {
                 PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT
             )
         }
-        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, chosenPendingIntent, context)
-        return if (slice != null) {
-            InlinePresentation(slice, inlinePresentationSpec, isPinned)
-        } else null
-    }
 
     private fun simpleRemoteViews(
             packageName: String, remoteViewsText: String,
