@@ -25,6 +25,7 @@ import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.tinylog.Level
+import org.tinylog.policies.DynamicPolicy
 import java.util.*
 
 
@@ -61,6 +62,17 @@ class FlutterAutofillService : AutofillService() {
         // a different process/task in the mean time.
         val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
         provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
+
+        // If the user has just deleted the autofill logs through the main app, the file handle
+        // already open from this process will remain the active destination for new log entries
+        // until something causes it to roll over to a new file. This call to tinylog forces the
+        // file to roll at this point, so we will generally have one log file per autofill
+        // operation and we'll therefore be unlikely to ever hit the 1MB file size limit,
+        // although we enable that too just in case. Thus maximum space taken up by log files
+        // (per the config in the example project) is going to be 30MB but in reality it will be
+        // much less.
+        DynamicPolicy.setReset()
+
         logger.debug { "onConnected." }
         val self = ComponentName(this, javaClass)
 
