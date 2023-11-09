@@ -126,13 +126,11 @@ object InlinePresentationHelper {
         }
         if (iconId > 0) {
             val icon = Icon.createWithResource(context, iconId)
-            if (icon != null) {
-                // We want to avoid tinting some icons such as favicons, logos, etc.
-                if (!tintIcon) {
-                    icon.setTintBlendMode(BlendMode.DST);
-                }
-                builder.setStartIcon(icon)
+            // We want to avoid tinting some icons such as favicons, logos, etc.
+            if (!tintIcon) {
+                icon.setTintBlendMode(BlendMode.DST);
             }
+            builder.setStartIcon(icon)
         }
         return builder.build().slice
     }
