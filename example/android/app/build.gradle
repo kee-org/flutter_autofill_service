@@ -36,7 +36,7 @@ android {
     defaultConfig {
         applicationId "com.keevault.flutter_autofill_service_example"
         minSdkVersion 29
-        targetSdk 31
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
