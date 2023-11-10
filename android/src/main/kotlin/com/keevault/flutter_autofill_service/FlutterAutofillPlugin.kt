@@ -282,12 +282,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
             val fillResponseBuilder = FillResponse.Builder().apply {
 
-                //TODO: Am assuming we can continue to return more than the demanded limit of the IME as long
-                // as we don't include more than that number of inlinepresentations but if crashes or problems
-                // happen we need to try restricting the total number of results instead, ensuring an extra
-                // space at the end for the "pick something else" button
-                //pwDatasets.take(if (respondInline) maxInlineSuggestionCount - 1 else 10).forEachIndexed { i, pw ->
-                pwDatasets.take(10).forEachIndexed { i, pw ->
+                // Even though Android will sometimes fall back to using the non-IME representation,
+                // it prevents us from returning more than the maximum number of datasets so we just
+                // have to hope that the user doesn't use an IME with a low limit.
+                pwDatasets.take(if (respondInline) maxInlineSuggestionCount - 1 else 10).forEachIndexed { i, pw ->
                     val builder = createDatasetBuilder(
                         remoteViews,
                         respondInline,
