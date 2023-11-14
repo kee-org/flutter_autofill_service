@@ -35,6 +35,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _fillRequestedAutomatic;
   bool? _fillRequestedInteractive;
   bool? _saveRequested;
+  bool? _CmCreatePasskeyRequested;
   AutofillPreferences? _preferences;
 
   @override
@@ -52,6 +53,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _fillRequestedAutomatic = await AutofillService().fillRequestedAutomatic;
     _fillRequestedInteractive =
         await AutofillService().fillRequestedInteractive;
+    _CmCreatePasskeyRequested =
+        await AutofillService().CmCreatePasskeyRequested;
+    _logger.warning(_CmCreatePasskeyRequested);
     _preferences = await AutofillService().preferences;
     setState(() {});
   }
@@ -141,6 +145,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   _logger.fine('Starting request.');
                   final response =
                       await AutofillService().requestSetAutofillService();
+                  _logger.fine('request finished $response');
+                  await _updateStatus();
+                },
+              ),
+              ElevatedButton(
+                child: const Text('requestSetCmService'),
+                onPressed: () async {
+                  _logger.fine('Starting request.');
+                  final response =
+                      await AutofillService().requestSetCmService();
                   _logger.fine('request finished $response');
                   await _updateStatus();
                 },

@@ -68,6 +68,11 @@ dependencies {
     implementation 'org.tinylog:tinylog-api:2.6.2'
     implementation 'org.tinylog:tinylog-impl:2.6.2'
     implementation 'org.tinylog:slf4j-tinylog:2.6.2'
+    implementation "androidx.credentials:credentials:1.2.0"
+    // optional - needed for credentials support from play services, for devices running
+    // Android 13 and below.
+    implementation "androidx.credentials:credentials-play-services-auth:1.2.0"
+
 
     implementation 'androidx.core:core-ktx:1.12.0'
 

@@ -79,6 +79,11 @@ class AutofillService {
         true;
   }
 
+  Future<bool> get CmCreatePasskeyRequested async {
+    return (await _channel.invokeMethod<bool>('CmCreatePasskeyRequested')) ==
+        true;
+  }
+
   Future<AutofillMetadata?> get autofillMetadata async {
     final result = await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getAutofillMetadata');
@@ -118,6 +123,10 @@ class AutofillService {
   Future<bool> requestSetAutofillService() async {
     return (await _channel.invokeMethod<bool>('requestSetAutofillService')) ??
         false;
+  }
+
+  Future<bool> requestSetCmService() async {
+    return (await _channel.invokeMethod<bool>('requestSetCmService')) ?? false;
   }
 
   Future<bool> resultWithDataset(
