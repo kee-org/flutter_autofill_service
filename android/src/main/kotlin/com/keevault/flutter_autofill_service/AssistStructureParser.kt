@@ -1,11 +1,9 @@
 package com.keevault.flutter_autofill_service
 
-import android.annotation.TargetApi
 import android.app.assist.AssistStructure
 import android.os.*
 import android.view.*
 import android.view.autofill.AutofillId
-import androidx.annotation.RequiresApi
 import com.squareup.moshi.JsonClass
 import io.github.oshai.kotlinlogging.KotlinLogging
 import android.app.assist.AssistStructure.ViewNode
@@ -15,7 +13,6 @@ private val logger = KotlinLogging.logger {}
 @JsonClass(generateAdapter = true)
 data class WebDomain(val scheme: String?, val domain: String)
 
-@RequiresApi(Build.VERSION_CODES.O)
 class AssistStructureParser(structure: AssistStructure) {
 
     val autoFillIds = mutableListOf<AutofillId>()
@@ -168,7 +165,6 @@ class AssistStructureParser(structure: AssistStructure) {
     //         }
     // }
 
-    @TargetApi(Build.VERSION_CODES.O)
     private fun traverseNode(viewNode: ViewNode, depth: String) {
         allNodes.add(viewNode)
         val debug =
@@ -191,15 +187,12 @@ class AssistStructureParser(structure: AssistStructure) {
                         viewNode::getContentDescription,
                         viewNode::getHtmlInfo,
                         viewNode::getExtras
-                ) + if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    listOf(
-                            viewNode::getWebScheme,
-                            viewNode::getTextIdEntry,
-                            viewNode::getImportantForAutofill
-                    )
-                } else {
-                    emptyList()
-                })
+                ) +
+                        listOf(
+                                viewNode::getWebScheme,
+                                viewNode::getTextIdEntry,
+                                viewNode::getImportantForAutofill
+                        ))
                         .map { it.name.replaceFirst("get", "") to it.invoke()?.debugToString() }
         logger.trace { "$depth ` ViewNode: ${debug.filter { it.second != null }.toList()}" }
         logger.trace { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
@@ -220,11 +213,7 @@ class AssistStructureParser(structure: AssistStructure) {
             if (webDomain.isNotEmpty()) {
                 webDomains.add(
                         WebDomain(
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                    viewNode.webScheme
-                                } else {
-                                    null
-                                }, webDomain
+                                viewNode.webScheme, webDomain
                         )
                 )
             }
