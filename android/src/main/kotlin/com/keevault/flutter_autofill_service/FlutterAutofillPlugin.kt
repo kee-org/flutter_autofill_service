@@ -39,6 +39,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.tinylog.Level
+import org.tinylog.core.TinylogLoggingProvider
 
 
 private val logger = KotlinLogging.logger {}
@@ -167,7 +168,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
                 // Make sure we have the latest log level configuration
                 val provider =
-                    org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
+                     DynamicLevelLoggingProvider(org.tinylog.provider.ProviderRegistry.getLoggingProvider() as TinylogLoggingProvider)
                 provider.activeLevel =
                     if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF
                 result.success(true)
