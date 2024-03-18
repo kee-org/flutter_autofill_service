@@ -25,6 +25,7 @@ import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.tinylog.Level
+import org.tinylog.core.TinylogLoggingProvider
 import org.tinylog.policies.DynamicPolicy
 import java.util.*
 
@@ -48,7 +49,7 @@ class FlutterAutofillService : AutofillService() {
         super.onCreate()
         autofillPreferenceStore = AutofillPreferenceStore.getInstance(applicationContext)
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
-        val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
+        val provider = DynamicLevelLoggingProvider(org.tinylog.provider.ProviderRegistry.getLoggingProvider() as TinylogLoggingProvider);
         //TODO: somehow force tracing to logcat at all times when in debug rather than release build mode?
         provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
         logger.debug { "Autofill service was created. debug: ${autofillPreferenceStore.autofillPreferences.enableDebug}" }
@@ -60,7 +61,7 @@ class FlutterAutofillService : AutofillService() {
         // Make sure we have the latest log level configuration each time we are asked to start the autofill procedure.
         // Android may re-use the same process for a long time and we may have had the shared preferences updated from
         // a different process/task in the mean time.
-        val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
+        val provider = DynamicLevelLoggingProvider(org.tinylog.provider.ProviderRegistry.getLoggingProvider() as TinylogLoggingProvider);
         provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
 
         // If the user has just deleted the autofill logs through the main app, the file handle

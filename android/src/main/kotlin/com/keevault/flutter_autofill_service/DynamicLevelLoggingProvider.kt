@@ -4,16 +4,21 @@ import org.tinylog.Level
 import org.tinylog.core.TinylogLoggingProvider
 import org.tinylog.format.MessageFormatter
 
-class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
+class DynamicLevelLoggingProvider(val _logger : TinylogLoggingProvider) {
+    private var logger : TinylogLoggingProvider
+
+    init {
+        this.logger = _logger
+    }
 
     @Volatile
     var activeLevel: Level = Level.TRACE;
 
-    override fun isEnabled(depth: Int, tag: String?, level: Level?): Boolean {
-        return activeLevel <= level && super.isEnabled(depth + 1, tag, level)
+    fun isEnabled(depth: Int, tag: String?, level: Level?): Boolean {
+        return activeLevel <= level && this.logger.isEnabled(depth + 1, tag, level)
     }
 
-    override fun log(
+    fun log(
         depth: Int,
         tag: String?,
         level: Level?,
@@ -23,11 +28,11 @@ class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
         arguments: Array<Any>?
     ) {
         if (activeLevel <= level) {
-            super.log(depth + 1, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
+            this.logger.log(depth + 1, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
         }
     }
 
-    override fun log(
+    fun log(
         loggerClassName: String?,
         tag: String?,
         level: Level?,
@@ -37,7 +42,7 @@ class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
         arguments: Array<Any>?
     ) {
         if (activeLevel <= level) {
-            super.log(loggerClassName, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
+            this.logger.log(loggerClassName, tag, level, exception, formatter, obj, arguments ?: emptyArray<Any>())
         }
     }
 
