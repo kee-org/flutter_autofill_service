@@ -63,11 +63,26 @@ object InlinePresentationHelper {
         } else null
     }
 
+    private fun getExplicitIntent(
+      context: Context
+    ): Intent {
+        val explicitIntent = Intent()
+        explicitIntent.setPackage(context.packageName)
+        return explicitIntent
+    }
+
     private fun getAttributionPendingIntent(
         pendingIntent: PendingIntent?,
         context: Context
     ): PendingIntent =
-        pendingIntent ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        pendingIntent ?: if (Build.VERSION.SDK_INT >= 34) {
+            PendingIntent.getService(
+                context,
+                0,
+                getExplicitIntent(context),
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.getService(
                 context,
                 0,
