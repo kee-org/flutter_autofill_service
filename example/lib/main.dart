@@ -79,128 +79,131 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         appBar: AppBar(
           title: const Text('Plugin example app'),
         ),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(widget.launchedByAutofillService
-                  ? 'Autofill launch'
-                  : 'Standard launch'),
-              Text('\nStatus: $_status\n'),
-              Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
-              Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
-              Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
-              Text(
-                  'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}\n\n'),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Flexible(child: Text('Toggle: ')),
-                  ElevatedButton(
-                    child: const Text('Debug/Logging'),
-                    onPressed: () async {
-                      await AutofillService()
-                          .setPreferences(AutofillPreferences(
-                        enableDebug: !_preferences!.enableDebug,
-                        enableSaving: _preferences!.enableSaving,
-                        enableIMERequests: _preferences!.enableIMERequests,
-                      ));
-                      await _updateStatus();
-                    },
-                  ),
-                  ElevatedButton(
-                    child: const Text('Save'),
-                    onPressed: () async {
-                      await AutofillService()
-                          .setPreferences(AutofillPreferences(
-                        enableDebug: _preferences!.enableDebug,
-                        enableSaving: !_preferences!.enableSaving,
-                        enableIMERequests: _preferences!.enableIMERequests,
-                      ));
-                      await _updateStatus();
-                    },
-                  ),
-                  ElevatedButton(
-                    child: const Text('IME'),
-                    onPressed: () async {
-                      await AutofillService()
-                          .setPreferences(AutofillPreferences(
-                        enableDebug: _preferences!.enableDebug,
-                        enableSaving: _preferences!.enableSaving,
-                        enableIMERequests: !_preferences!.enableIMERequests,
-                      ));
-                      await _updateStatus();
-                    },
-                  ),
-                ],
-              ),
-              ElevatedButton(
-                child: const Text('requestSetAutofillService'),
-                onPressed: () async {
-                  _logger.fine('Starting request.');
-                  final response =
-                      await AutofillService().requestSetAutofillService();
-                  _logger.fine('request finished $response');
-                  await _updateStatus();
-                },
-              ),
-              ElevatedButton(
-                child: const Text('Simulate automatic autofill result'),
-                onPressed: () async {
-                  _logger.fine('Starting request.');
-                  final response = await AutofillService().resultWithDatasets([
-                    PwDataset(
-                      label: 'user and pass 1',
-                      username: 'dummyUsername1',
-                      password: 'dpwd1',
+        body: SingleChildScrollView(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(widget.launchedByAutofillService
+                    ? 'Autofill launch'
+                    : 'Standard launch'),
+                Text('\nStatus: $_status\n'),
+                Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
+                Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
+                Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
+                Text(
+                    'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}\n\n'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Flexible(child: Text('Toggle: ')),
+                    ElevatedButton(
+                      child: const Text('Debug/Logging'),
+                      onPressed: () async {
+                        await AutofillService()
+                            .setPreferences(AutofillPreferences(
+                          enableDebug: !_preferences!.enableDebug,
+                          enableSaving: _preferences!.enableSaving,
+                          enableIMERequests: _preferences!.enableIMERequests,
+                        ));
+                        await _updateStatus();
+                      },
                     ),
-                    PwDataset(
-                      label: 'user and pass 2',
-                      username: 'dummyUsername2',
-                      password: 'dpwd2',
+                    ElevatedButton(
+                      child: const Text('Save'),
+                      onPressed: () async {
+                        await AutofillService()
+                            .setPreferences(AutofillPreferences(
+                          enableDebug: _preferences!.enableDebug,
+                          enableSaving: !_preferences!.enableSaving,
+                          enableIMERequests: _preferences!.enableIMERequests,
+                        ));
+                        await _updateStatus();
+                      },
                     ),
-                    PwDataset(
-                      label: 'user only',
-                      username: 'dummyUsername2',
-                      password: '',
+                    ElevatedButton(
+                      child: const Text('IME'),
+                      onPressed: () async {
+                        await AutofillService()
+                            .setPreferences(AutofillPreferences(
+                          enableDebug: _preferences!.enableDebug,
+                          enableSaving: _preferences!.enableSaving,
+                          enableIMERequests: !_preferences!.enableIMERequests,
+                        ));
+                        await _updateStatus();
+                      },
                     ),
-                    PwDataset(
-                      label: 'pass only',
-                      username: '',
-                      password: 'dpwd2',
-                    ),
-                  ]);
-                  _logger.fine('resultWithDatasets $response');
-                  await _updateStatus();
-                },
-              ),
-              ElevatedButton(
-                child: const Text('Simulate interactive autofill result'),
-                onPressed: () async {
-                  _logger.fine('Starting request.');
-                  final response = await AutofillService().resultWithDataset(
-                    label: 'this is the label 3',
-                    username: 'dummyUsername3',
-                    password: 'dpwd3',
-                  );
-                  _logger.fine('resultWithDatasets $response');
-                  await _updateStatus();
-                },
-              ),
-              Visibility(
-                visible: _saveRequested ?? false,
-                child: ElevatedButton(
-                  child: const Text('Simulate save operation'),
+                  ],
+                ),
+                ElevatedButton(
+                  child: const Text('requestSetAutofillService'),
                   onPressed: () async {
-                    _logger.fine('TODO: save the supplied data now.');
-                    await AutofillService().onSaveComplete();
-                    _logger.fine('save completed');
+                    _logger.fine('Starting request.');
+                    final response =
+                        await AutofillService().requestSetAutofillService();
+                    _logger.fine('request finished $response');
                     await _updateStatus();
                   },
                 ),
-              ),
-            ],
+                ElevatedButton(
+                  child: const Text('Simulate automatic autofill result'),
+                  onPressed: () async {
+                    _logger.fine('Starting request.');
+                    final response =
+                        await AutofillService().resultWithDatasets([
+                      PwDataset(
+                        label: 'user and pass 1',
+                        username: 'dummyUsername1',
+                        password: 'dpwd1',
+                      ),
+                      PwDataset(
+                        label: 'user and pass 2',
+                        username: 'dummyUsername2',
+                        password: 'dpwd2',
+                      ),
+                      PwDataset(
+                        label: 'user only',
+                        username: 'dummyUsername2',
+                        password: '',
+                      ),
+                      PwDataset(
+                        label: 'pass only',
+                        username: '',
+                        password: 'dpwd2',
+                      ),
+                    ]);
+                    _logger.fine('resultWithDatasets $response');
+                    await _updateStatus();
+                  },
+                ),
+                ElevatedButton(
+                  child: const Text('Simulate interactive autofill result'),
+                  onPressed: () async {
+                    _logger.fine('Starting request.');
+                    final response = await AutofillService().resultWithDataset(
+                      label: 'this is the label 3',
+                      username: 'dummyUsername3',
+                      password: 'dpwd3',
+                    );
+                    _logger.fine('resultWithDatasets $response');
+                    await _updateStatus();
+                  },
+                ),
+                Visibility(
+                  visible: _saveRequested ?? false,
+                  child: ElevatedButton(
+                    child: const Text('Simulate save operation'),
+                    onPressed: () async {
+                      _logger.fine('TODO: save the supplied data now.');
+                      await AutofillService().onSaveComplete();
+                      _logger.fine('save completed');
+                      await _updateStatus();
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

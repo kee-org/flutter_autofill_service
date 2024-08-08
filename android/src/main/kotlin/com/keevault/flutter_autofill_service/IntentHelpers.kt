@@ -16,6 +16,9 @@ object IntentHelpers {
                 AutofillMetadata(packageNames, webDomains, saveInfo).toJsonString()
         )
 
+        // Make the intent explicit to allow mutability
+        startIntent.setPackage(context.packageName)
+
         // Note: Do not make a pending intent immutable by using PendingIntent.FLAG_IMMUTABLE
         // as the platform needs to fill in the authentication arguments.
 
