@@ -1,24 +1,24 @@
 name: flutter_autofill_service
 description: Integrate Flutter with platform autofill services. Inspired by similar autofill_service package.
-version: 0.18.1
+version: 0.19.0
 issue_tracker: https://github.com/kee-org/flutter_autofill_service/issues/
 homepage: https://github.com/kee-org/flutter_autofill_service/
 repository: https://github.com/kee-org/flutter_autofill_service/
 
 environment:
-  sdk: '>=2.19.0 <3.0.0'
-  flutter: ">=3.7.0"
+  sdk: '>=2.19.0 <4.0.0'
+  flutter: ">=3.13.0"
 
 dependencies:
   flutter:
     sdk: flutter
   logging: ^1.2.0
-  universal_platform: ^1.0.0+1
+  universal_platform: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  pedantic: ^1.11.1
+  lints: ^4.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
