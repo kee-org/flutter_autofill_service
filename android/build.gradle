@@ -1,6 +1,6 @@
 
 buildscript {
-    ext.kotlin_version = '1.8.22'
+    ext.kotlin_version = '1.9.25'
     repositories {
         google()
         mavenCentral()
@@ -13,7 +13,7 @@ buildscript {
 }
 
 plugins {
-    id 'com.google.devtools.ksp' version '1.8.22-1.0.11' apply false
+    id 'com.google.devtools.ksp' version '1.9.25-1.0.20' apply false
 }
 
 group 'com.keevault.flutter_autofill_service'
@@ -60,16 +60,16 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
     implementation 'androidx.autofill:autofill:1.1.0'
-    implementation "androidx.annotation:annotation:1.7.0"
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation "androidx.annotation:annotation:1.8.2"
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'com.google.android.material:material:1.10.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'io.github.oshai:kotlin-logging-jvm:5.1.0'
     implementation 'org.tinylog:tinylog-api:2.6.2'
     implementation 'org.tinylog:tinylog-impl:2.6.2'
     implementation 'org.tinylog:slf4j-tinylog:2.6.2'
 
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
 
     // json deserialize
     implementation "com.squareup.moshi:moshi:1.14.0"
