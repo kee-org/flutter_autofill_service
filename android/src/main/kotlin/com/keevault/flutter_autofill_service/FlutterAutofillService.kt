@@ -121,7 +121,7 @@ class FlutterAutofillService : AutofillService() {
         logger.debug { "Fill request config: compatMode: $compatModeRequested , manuallyRequested: $manuallyRequested, fillDialogRequested: $fillDialogRequested, offerToSave: $offerToSave" }
 
         // fill dialog is another undocumented and buggy Android autofill "feature" that is
-        // unacceptable for human use, at least as of late 2024.
+        // unacceptable for human use, at least as of late 2023.
         // Best guess is that it is only designed to be used by password managers which do not
         // protect their stored credentials behind any authentication, or perhaps only behind some
         // sort of authentication that can occur in the background, such as a privileged

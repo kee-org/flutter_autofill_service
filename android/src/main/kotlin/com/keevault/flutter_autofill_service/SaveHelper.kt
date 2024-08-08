@@ -40,10 +40,8 @@ object SaveHelper {
         } else if (usernameId != null) {
             clientState.putParcelable("usernameId", usernameId)
             builder = SaveInfo.Builder(SaveInfo.SAVE_DATA_TYPE_USERNAME, arrayOf(usernameId))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // This should prevent spurious save requests when we incorrectly guess that a text field is a username field and the app activity ends
-                builder.setFlags(SaveInfo.FLAG_DELAY_SAVE)
-            }
+            // This should prevent spurious save requests when we incorrectly guess that a text field is a username field and the app activity ends
+            builder.setFlags(SaveInfo.FLAG_DELAY_SAVE)
         } else {
             clientState.putParcelable("passwordId", passwordId)
             // username may be null if we only found a password field and no earlier screen had a username field on it
