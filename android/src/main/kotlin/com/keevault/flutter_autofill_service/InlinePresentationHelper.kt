@@ -57,7 +57,7 @@ object InlinePresentationHelper {
         // we include a dummy one if none was supplied to us.
         @SuppressLint("UnspecifiedImmutableFlag")
         val chosenPendingIntent = getAttributionPendingIntent(pendingIntent, context)
-        val slice = createSlice(inlinePresentationSpec, text, null, drawableId, tintIcon, chosenPendingIntent, context)
+        val slice = createSlice(inlinePresentationSpec, if (!isPinned) text else null, null, drawableId, tintIcon, chosenPendingIntent, context)
         return if (slice != null) {
             InlinePresentation(slice, inlinePresentationSpec, isPinned)
         } else null
@@ -111,7 +111,7 @@ object InlinePresentationHelper {
     @RequiresApi(Build.VERSION_CODES.R)
     private fun createSlice(
             inlinePresentationSpec: InlinePresentationSpec,
-            title: String,
+            title: String?,
             subtitle: String?,
             iconId: Int,
             tintIcon: Boolean,
@@ -126,7 +126,7 @@ object InlinePresentationHelper {
 
         // Build the content for the v1 UI.
         val builder = InlineSuggestionUi.newContentBuilder(pendingIntent)
-        if (title.isNotEmpty()) {
+        if (title?.isNotEmpty() == true) {
             builder.setTitle(title)
         }
         if (subtitle?.isNotEmpty() == true) {
