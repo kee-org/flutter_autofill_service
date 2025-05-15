@@ -47,3 +47,6 @@ app.*.map.json
 
 /android/build/
 .gradle/
+
+# Should be able to remove this once Flutter 3.29 bug has been resolved
+example/android/app/.cxx/
