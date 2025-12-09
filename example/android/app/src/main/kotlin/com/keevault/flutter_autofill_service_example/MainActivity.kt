@@ -10,6 +10,9 @@ class MainActivity: FlutterActivity() {
         // started so we have to make sure the log location is fixed at
         // this early point.
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
+
+        //TOOD: also onReattachish
+
         super.onCreate(savedInstanceState)
     }
 }

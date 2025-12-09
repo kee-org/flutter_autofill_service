@@ -22,6 +22,21 @@
                 android:name="android.autofill"
                 android:resource="@xml/service_configuration" />
         </service>
+
+        <service android:name=".FlutterCredentialProviderService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Flutter Credential Provider"
+
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/provider"/>
+        </service>
+
     </application>
 
 </manifest>

@@ -26,6 +26,9 @@ import android.view.autofill.AutofillValue
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
+import androidx.credentials.CreatePublicKeyCredentialRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.provider.PendingIntentHandler
 import com.keevault.flutter_autofill_service.InlinePresentationHelper.viewsWithNoAuth
 import com.keevault.flutter_autofill_service.IntentHelpers.getStartIntent
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
@@ -39,6 +42,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.tinylog.Level
+import org.tinylog.provider.ProviderRegistry
 
 
 private val logger = KotlinLogging.logger {}
@@ -167,7 +171,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
                 // Make sure we have the latest log level configuration
                 val provider =
-                    org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
+                    ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
                 provider.activeLevel =
                     if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF
                 result.success(true)
@@ -176,6 +180,32 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             "onSaveComplete" -> {
                 // Clearing the lastIntent allows the consumer's code to know if a save request has already been handled.
                 lastIntent = null
+                activity?.moveTaskToBack(true)
+            }
+
+            //TODO: Update app to reflect that this functions only on API34+ and also enables Autofill so older request is no longer required.
+            "requestSetCmService" -> {
+                val cm = CredentialManager.create(context)
+                val pi = cm.createSettingsPendingIntent();
+                logger.debug { "enable credential manager request: pendingintent=$pi" }
+
+                pi.send()
+            }
+
+            //TODO: convert to way to send the actual data to flutter so we can create the key, save it, etc.
+            "CmCreatePasskeyRequested" -> {
+                if (lastIntent == null) result.success(false)
+                val request =
+            PendingIntentHandler.retrieveProviderCreateCredentialRequest(lastIntent!!)
+
+                result.success(request != null && request.callingRequest is CreatePublicKeyCredentialRequest)
+            }
+
+            "onCmCreatePasskeyComplete" -> {
+                //TODO: verify this is needed
+                // Clearing the lastIntent allows the consumer's code to know if a request has already been handled.
+                lastIntent = null
+                //TODO: verify this is still relevant for CM
                 activity?.moveTaskToBack(true)
             }
 
