@@ -10,7 +10,7 @@ final _logger = Logger('main');
 void main() {
   Logger.root.level = Level.ALL;
   PrintAppender().attachToLogger(Logger.root);
-  _logger.info('Initialized logger.');
+  _logger.info('Initialized logger (main).');
   runApp(const MyApp(false));
 }
 
@@ -18,7 +18,7 @@ void main() {
 void autofillEntryPoint() {
   Logger.root.level = Level.ALL;
   PrintAppender().attachToLogger(Logger.root);
-  _logger.info('Initialized logger.');
+  _logger.info('Initialized logger (autofill).');
   runApp(const MyApp(true));
 }
 
@@ -36,11 +36,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _fillRequestedAutomatic;
   bool? _fillRequestedInteractive;
   bool? _saveRequested;
+  bool? _cmCreatePasswordRequested;
   AutofillPreferences? _preferences;
+  String? _autofillMode;
 
   @override
   void initState() {
     super.initState();
+    _logger.info('Example app initialized');
     WidgetsBinding.instance.addObserver(this);
     _updateStatus();
   }
@@ -53,6 +56,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _fillRequestedAutomatic = await AutofillService().fillRequestedAutomatic;
     _fillRequestedInteractive =
         await AutofillService().fillRequestedInteractive;
+    _autofillMode = await AutofillService().autofillMode;
+
+    // Check for Credential Manager create password request
+    _cmCreatePasswordRequested =
+        await AutofillService().cmCreatePasswordRequested;
+
     _preferences = await AutofillService().preferences;
     setState(() {});
   }
@@ -85,9 +94,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(widget.launchedByAutofillService
-                    ? 'Autofill launch'
-                    : 'Standard launch'),
+                Text(_getLaunchTypeText()),
                 Text('\nStatus: $_status\n'),
                 Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
                 Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
@@ -148,6 +155,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   },
                 ),
                 ElevatedButton(
+                  child: const Text('requestSetCmService'),
+                  onPressed: () async {
+                    _logger.fine('Starting request.');
+                    await AutofillService().requestSetCmService();
+                    await _updateStatus();
+                  },
+                ),
+                ElevatedButton(
                   child: const Text('Simulate automatic autofill result'),
                   onPressed: () async {
                     _logger.fine('Starting request.');
@@ -192,22 +207,77 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                   },
                 ),
                 Visibility(
-                  visible: _saveRequested ?? false,
+                  visible: _saveRequested ??
+                      false || (_cmCreatePasswordRequested ?? false),
                   child: ElevatedButton(
                     child: const Text('Simulate save operation'),
                     onPressed: () async {
-                      _logger.fine('TODO: save the supplied data now.');
+                      _logger.fine(
+                          'TODO: Save data: ${_autofillMetadata?.saveInfo}');
                       await AutofillService().onSaveComplete();
                       _logger.fine('save completed');
-                      await _updateStatus();
+                      //await _updateStatus();
                     },
                   ),
                 ),
+                // Credential Manager Create Password Status Display
+                if (_cmCreatePasswordRequested == true)
+                  Card(
+                    margin: const EdgeInsets.all(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Credential Manager Save Request',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Calling App: ${_autofillMetadata?.saveInfo?.appName ?? "Unknown"}',
+                          ),
+                          Text(
+                            'Package: ${_autofillMetadata?.packageNames.firstOrNull ?? "Unknown"}',
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Username: ${_autofillMetadata?.saveInfo?.username ?? "N/A"}',
+                          ),
+                          Text(
+                            'Password: ${_autofillMetadata?.saveInfo?.password != null ? "***" : "N/A"}',
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Press the save button above to complete the save operation',
+                            style: TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  String _getLaunchTypeText() {
+    if (!widget.launchedByAutofillService) {
+      return 'Standard launch';
+    }
+
+    // Determine the launch type based on autofill_mode
+    switch (_autofillMode) {
+      case '/credential_manager_get_password':
+      case '/credential_manager_create_password': //TODO: this should be via Standard launch so that pending saves can be seen in the main app.
+        return 'Credential Manager launch';
+      case '/autofill':
+      case '/autofill_select':
+      default:
+        return 'Autofill launch';
+    }
   }
 }

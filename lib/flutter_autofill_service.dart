@@ -79,6 +79,25 @@ class AutofillService {
         true;
   }
 
+  Future<bool> get cmCreatePasskeyRequested async {
+    return (await _channel.invokeMethod<bool>('cmCreatePasskeyRequested')) ==
+        true;
+  }
+
+  Future<bool> get cmGetCredentialRequested async {
+    return await _channel.invokeMethod<bool>('cmGetCredentialRequested') ??
+        false;
+  }
+
+  Future<bool> get cmCreatePasswordRequested async {
+    return await _channel.invokeMethod<bool>('cmCreatePasswordRequested') ??
+        false;
+  }
+
+  Future<String?> get autofillMode async {
+    return await _channel.invokeMethod<String>('getAutofillMode');
+  }
+
   Future<AutofillMetadata?> get autofillMetadata async {
     final result = await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getAutofillMetadata');
@@ -120,6 +139,10 @@ class AutofillService {
         false;
   }
 
+  Future<void> requestSetCmService() async {
+    await _channel.invokeMethod<void>('requestSetCmService');
+  }
+
   Future<bool> resultWithDataset(
       {String? label, String? username, String? password}) async {
     return (await _channel.invokeMethod<bool>(
@@ -156,6 +179,25 @@ class AutofillService {
 
   Future<void> onSaveComplete() async {
     return (await _channel.invokeMethod<void>('onSaveComplete'));
+  }
+
+  Future<bool> onCmGetCredentialComplete(
+      String username, String password) async {
+    return await _channel.invokeMethod<bool>('onCmGetCredentialComplete', {
+          'username': username,
+          'password': password,
+        }) ??
+        false;
+  }
+
+  Future<bool> onCmGetCredentialCancelled() async {
+    return await _channel.invokeMethod<bool>('onCmGetCredentialCancelled') ??
+        false;
+  }
+
+  Future<bool> onCmCreatePasswordComplete() async {
+    return await _channel.invokeMethod<bool>('onCmCreatePasswordComplete') ??
+        false;
   }
 }
 
@@ -238,4 +280,27 @@ class AutofillWebDomain {
         if (scheme != null) 'scheme': scheme!,
         'domain': domain,
       };
+}
+
+class CmGetCredentialRequest {
+  final String? callingPackage;
+  final String? callingAppLabel;
+  final bool requestsPasswords;
+  final bool requestsPasskeys;
+
+  CmGetCredentialRequest({
+    this.callingPackage,
+    this.callingAppLabel,
+    this.requestsPasswords = false,
+    this.requestsPasskeys = false,
+  });
+
+  factory CmGetCredentialRequest.fromMap(Map<dynamic, dynamic> map) {
+    return CmGetCredentialRequest(
+      callingPackage: map['callingPackage'] as String?,
+      callingAppLabel: map['callingAppLabel'] as String?,
+      requestsPasswords: map['requestsPasswords'] as bool? ?? false,
+      requestsPasskeys: map['requestsPasskeys'] as bool? ?? false,
+    );
+  }
 }

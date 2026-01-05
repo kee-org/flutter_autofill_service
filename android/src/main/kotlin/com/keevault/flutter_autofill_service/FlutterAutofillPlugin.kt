@@ -2,6 +2,7 @@ package com.keevault.flutter_autofill_service
 
 import android.R.attr.value
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.Activity.RESULT_OK
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
@@ -26,6 +27,14 @@ import android.view.autofill.AutofillValue
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
+import androidx.credentials.CreatePasswordRequest
+import androidx.credentials.CreatePasswordResponse
+import androidx.credentials.CreatePublicKeyCredentialRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.PasswordCredential
+import androidx.credentials.provider.PendingIntentHandler
+import androidx.credentials.provider.ProviderGetCredentialRequest
+import androidx.credentials.GetCredentialResponse
 import com.keevault.flutter_autofill_service.InlinePresentationHelper.viewsWithNoAuth
 import com.keevault.flutter_autofill_service.IntentHelpers.getStartIntent
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
@@ -39,6 +48,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.tinylog.Level
+import org.tinylog.provider.ProviderRegistry
 
 
 private val logger = KotlinLogging.logger {}
@@ -104,9 +114,65 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             }
             // method available while we are handling an autofill request.
             "getAutofillMetadata" -> {
-                val metadata = lastIntent?.getStringExtra(
+                var metadata = lastIntent?.getStringExtra(
                     AutofillMetadata.EXTRA_NAME
                 )?.let(AutofillMetadata.Companion::fromJsonString)
+                
+                // If metadata is not available from the intent, check if this is a Credential Manager request
+                if (metadata == null) {
+                    val createRequest = try {
+                        PendingIntentHandler.retrieveProviderCreateCredentialRequest(lastIntent!!)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (createRequest != null) {
+                        val request: CreatePasswordRequest = createRequest.callingRequest as CreatePasswordRequest
+
+                        // Extract package name and app name from the create request
+                        val callingPackage = createRequest.callingAppInfo.packageName
+                        val packageNames = setOf(callingPackage)
+
+                        // Try to get app label
+                        val callingAppLabel = try {
+                            context.packageManager.getApplicationLabel(
+                                context.packageManager.getApplicationInfo(
+                                    callingPackage,
+                                    PackageManager.GET_META_DATA
+                                )
+                            ).toString()
+                        } catch (e: Exception) {
+                            logger.warn(e) { "Failed to get app label for package: $callingPackage" }
+                            null
+                        }
+                        
+                        // Extract web domains from the origin if available
+                        val webDomains = try {
+                            request.origin?.let { origin ->
+                                //TODO: Review spec of expected API responses and secure handling of origin string
+                                // Parse the origin to extract the domain
+                                val domain = origin.removePrefix("https://").removePrefix("http://").split("/").first()
+                                setOf(WebDomain(null, domain ))
+                            } ?: setOf()
+                        } catch (e: Exception) {
+                            setOf()
+                        }
+                        
+                        val saveInfo = SaveInfoMetadata(
+                            username = request.id,
+                            password = request.password,
+                            isCompatMode = null,
+                            appName = callingAppLabel
+                        )
+                        
+                        metadata = AutofillMetadata(
+                            packageNames = packageNames,
+                            webDomains = webDomains,
+                            saveInfo = saveInfo
+                        )
+                    }
+                }
+                
                 logger.debug { "Got metadata: ${hideSensitiveMetadata(metadata)}" }
                 result.success(metadata?.toJson())
             }
@@ -167,16 +233,116 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
                 // Make sure we have the latest log level configuration
                 val provider =
-                    org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
+                    ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
                 provider.activeLevel =
                     if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF
                 result.success(true)
             }
 
             "onSaveComplete" -> {
-                // Clearing the lastIntent allows the consumer's code to know if a save request has already been handled.
-                lastIntent = null
-                activity?.moveTaskToBack(true)
+                val currentActivity = activity
+                if (currentActivity == null) {
+                    logger.error { "No activity available to complete save" }
+                    result.error("NO_ACTIVITY", "No activity available", null)
+                    return
+                }
+                
+                try {
+                    // Check if this is a Credential Manager save request
+                    val createRequest = try {
+                        PendingIntentHandler.retrieveProviderCreateCredentialRequest(lastIntent!!)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (createRequest != null) {
+                        val result = Intent()
+                        val response = CreatePasswordResponse()
+
+/*
+Sets the CreateCredentialResponse on the intent passed in. This intent is then set as the data associated with the result of the activity invoked by the PendingIntent set on a CreateEntry. The intent is set using the Activity.setResult method that takes in the intent, as well as a result code.
+
+A credential provider must set the result code to Activity.RESULT_OK if a valid response, or a valid exception is being set as the data to the result. However, if the credential provider is unable to resolve to a valid response or exception, the result code must be set to Activity.RESULT_CANCELED. Note that setting the result code to Activity.RESULT_CANCELED will re-surface the account selection bottom sheet that displayed the original CredentialEntry, hence allowing the user to re-select.
+*/
+                        PendingIntentHandler.setCreateCredentialResponse(result, response)
+
+                        currentActivity.setResult(Activity.RESULT_OK, result)
+                        currentActivity.finish()
+                        logger.info { "Credential Manager save completed successfully" }
+                    } else {
+                        // This is a traditional autofill save - just move task to back since we don't need or want to finish the activity
+                        currentActivity.moveTaskToBack(true)
+                        logger.info { "Autofill save completed successfully" }
+                    }
+
+                    // Clear the lastIntent to indicate the save request has been handled
+                    lastIntent = null
+                    result.success(true)
+                } catch (e: Exception) {
+                    logger.error(e) { "Error completing save" }
+
+                    //TODO: We could call setCreateCredentialException() after an exception to give feedback to calling app/user.
+                    
+                    // Fall back to simple completion
+                    lastIntent = null
+                    currentActivity.moveTaskToBack(true)
+                    result.success(true)
+                }
+            }
+
+            //TODO: Update app to reflect that this functions only on API34+ and also enables Autofill so older request is no longer required.
+            "requestSetCmService" -> {
+                val cm = CredentialManager.create(context)
+                val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    cm.createSettingsPendingIntent()
+                } else {
+                    return
+                }
+                logger.debug { "enable credential manager request: pendingintent=$pi" }
+                pi.send()
+            }
+
+            //TODO: send the actual data to flutter so app using this library can create the key, save it, etc.
+            "cmCreatePasskeyRequested" -> {
+                if (lastIntent == null) result.success(false)
+                val request =
+            PendingIntentHandler.retrieveProviderCreateCredentialRequest(lastIntent!!)
+                result.success(request != null && request.callingRequest is CreatePublicKeyCredentialRequest)
+            }
+
+            "onCmCreatePasskeyComplete" -> {
+                //TODO: implement passkey support
+            }
+
+            "cmGetCredentialRequested" -> {
+                // Check if this is a credential manager get request based on autofill_mode
+                val mode = lastIntent?.getStringExtra("autofill_mode")
+                result.success(mode == "/credential_manager_get_password")
+            }
+
+            "onCmGetCredentialComplete" -> {
+                val username = call.argument<String>("username")
+                val password = call.argument<String>("password")
+                if (username == null || password == null) {
+                    result.error("INVALID_ARGUMENTS", "Username and password are required", null)
+                } else {
+                    onCmGetCredentialComplete(username, password, result)
+                }
+            }
+
+            "onCmGetCredentialCancelled" -> {
+                onCmGetCredentialCancelled(result)
+            }
+
+            "cmCreatePasswordRequested" -> {
+                // Check if this is a credential manager create password request based on autofill_mode
+                val mode = lastIntent?.getStringExtra("autofill_mode")
+                result.success(mode == "/credential_manager_create_password")
+            }
+
+            "getAutofillMode" -> {
+                val mode = lastIntent?.getStringExtra("autofill_mode")
+                result.success(mode)
             }
 
             else -> result.notImplemented()
@@ -977,6 +1143,68 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                             "Failed to add pick another item dataset: $e"
                         }
         null
+    }
+
+    /// Called by Flutter when the user has selected a credential to fill. This creates the credential response and returns it to the calling app.
+    private fun onCmGetCredentialComplete(username: String, password: String, result: Result) {
+        logger.info { "onCmGetCredentialComplete called for user: $username" }
+        
+        val currentActivity = activity
+        if (currentActivity == null) {
+            logger.error { "No activity available to complete credential request" }
+            result.error("NO_ACTIVITY", "No activity available", null)
+            return
+        }
+        
+        try {
+            // Create the password credential
+            val credential = PasswordCredential(username, password)
+            
+            // Create the response
+            val credentialResponse = GetCredentialResponse(credential)
+            
+            // Create the result intent
+            val resultIntent = Intent()
+            PendingIntentHandler.setGetCredentialResponse(resultIntent, credentialResponse)
+            
+            // Set the result and finish the activity
+            currentActivity.setResult(Activity.RESULT_OK, resultIntent)
+            currentActivity.finish()
+            
+            lastIntent = null
+            
+            logger.info { "Credential response sent successfully" }
+            result.success(true)
+        } catch (e: Exception) {
+            logger.error(e) { "Error completing credential request" }
+            result.error("CREDENTIAL_ERROR", e.message, null)
+        }
+    }
+
+    /// Called by Flutter when the user cancels the credential selection.
+    private fun onCmGetCredentialCancelled(result: Result) {
+        logger.info { "onCmGetCredentialCancelled called" }
+        
+        val currentActivity = activity
+        if (currentActivity == null) {
+            logger.error { "No activity available to cancel credential request" }
+            result.error("NO_ACTIVITY", "No activity available", null)
+            return
+        }
+        
+        try {
+            // Set cancelled result
+            currentActivity.setResult(Activity.RESULT_CANCELED)
+            currentActivity.finish()
+            
+            lastIntent = null
+            
+            logger.info { "Credential request cancelled" }
+            result.success(true)
+        } catch (e: Exception) {
+            logger.error(e) { "Error cancelling credential request" }
+            result.error("CANCEL_ERROR", e.message, null)
+        }
     }
 
     override fun onNewIntent(intent: Intent): Boolean {
