@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    compileSdk 35
+    compileSdk 36
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -66,12 +66,12 @@ flutter {
 }
 
 dependencies {
-    implementation 'org.tinylog:tinylog-api:2.6.2'
-    implementation 'org.tinylog:tinylog-impl:2.6.2'
-    implementation 'org.tinylog:slf4j-tinylog:2.6.2'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'org.tinylog:tinylog-api:2.7.0'
+    implementation 'org.tinylog:tinylog-impl:2.7.0'
+    implementation 'org.tinylog:slf4j-tinylog:2.7.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test:runner:1.6.2'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
 }
