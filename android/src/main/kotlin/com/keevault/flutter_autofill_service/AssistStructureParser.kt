@@ -280,6 +280,134 @@ class AssistStructureParser(structure: AssistStructure) {
         return allNodes.firstOrNull { it.autofillId == id }
     }
 
+    /**
+     * Checks if there's an email field that appears to be part of a sign-in form.
+     * This is used to support multi-step login flows where the email is entered first
+     * and the password field appears on a subsequent screen.
+     *
+     * A sign-in email field is identified by:
+     * 1. Being detected as an Email field type by our heuristics
+     * 2. Having indicators that suggest it's for authentication, not data collection:
+     *    - Chrome's ua-autofill-hints or computed-autofill-hints containing EMAIL_ADDRESS
+     *    - Standard autofill hints like emailAddress
+     *    - Being in a form context that doesn't have contact-form indicators
+     *
+     * Contact forms are excluded by checking for the presence of fields that typically
+     * appear in contact/feedback forms but not in sign-in forms (e.g., message, subject fields).
+     */
+    fun hasSignInEmailOrUsernameField(): Boolean {
+        val emailFields = fieldIds[AutofillInputType.Email]
+        val usernameFields = fieldIds[AutofillInputType.UserName]
+        val combinedFields = (emailFields ?: emptyList()) + (usernameFields ?: emptyList())
+        if (combinedFields.isNullOrEmpty()) {
+            logger.debug { "hasSignInEmailOrUsernameField: No email or username fields detected" }
+            return false
+        }
+
+        // Check if any email field has sign-in indicators
+        for (matchedField in combinedFields) {
+            val node = findNodeByAutofillId(matchedField.autofillId)
+            if (node != null && isSignInEmailOrUsernameNode(node)) {
+                logger.debug { "hasSignInEmailOrUsernameField: Found sign-in email/username field with autofillId ${matchedField.autofillId}" }
+                return true
+            }
+        }
+
+        logger.debug { "hasSignInEmailOrUsernameField: Email/username fields found but none appear to be sign-in fields" }
+        return false
+    }
+
+    /**
+     * Assumes node is a user/email field and we must determine if it was mismatched due to confusion with a contact/messaging form
+     */
+    private fun isSignInEmailOrUsernameNode(node: ViewNode): Boolean {
+
+        // Check if this looks like a contact form by examining all other fields
+        // Contact forms typically have message/body/subject fields which sign-in forms don't have
+        if (hasContactFormIndicators()) {
+            logger.trace { "isSignInEmailOrUsernameNode: Contact form indicators found, not treating as sign-in" }
+            return false
+        }
+
+        // If we have an email field with no contact form indicators, and it's the only
+        // significant input field (or paired with a username field), treat it as sign-in
+        val significantFields = countSignificantInputFields()
+        if (significantFields <= 2) {
+            logger.trace { "isSignInEmailOrUsernameNode: Only $significantFields significant fields, treating as potential sign-in" }
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Checks if the form appears to be a contact/feedback form based on field indicators.
+     */
+    private fun hasContactFormIndicators(): Boolean {
+        val contactFormKeywords = listOf(
+            "message", "comment", "feedback", "inquiry", "question",
+            "subject", "topic", "reason", "description", "query",
+            "your message", "your question", "how can we help"
+        )
+
+        for (node in allNodes) {
+            // Check hint text
+            val hint = node.hint?.lowercase()
+            if (hint != null && contactFormKeywords.any { hint == it }) {
+                logger.trace { "hasContactFormIndicators: Found contact form keyword in hint: $hint" }
+                return true
+            }
+
+            // Check HTML attributes for textarea or message-like fields
+            val htmlInfo = node.htmlInfo
+            if (htmlInfo != null) {
+                // Textarea elements are strong indicators of contact forms
+                if (htmlInfo.tag?.lowercase() == "textarea") {
+                    logger.trace { "hasContactFormIndicators: Found textarea element" }
+                    return true
+                }
+
+                val attributes = htmlInfo.attributes
+                if (attributes != null) {
+                    for (attr in attributes) {
+                        val attrName = attr.first?.lowercase() ?: continue
+                        val attrValue = attr.second?.lowercase() ?: continue
+
+                        if ((attrName == "name" || attrName == "id" || attrName == "placeholder") &&
+                            contactFormKeywords.any { attrValue == it }) {
+                            logger.trace { "hasContactFormIndicators: Found contact form keyword in $attrName=$attrValue" }
+                            return true
+                        }
+                    }
+                }
+            }
+
+            // Check idEntry
+            val idEntry = node.idEntry?.lowercase()
+            if (idEntry != null && contactFormKeywords.any { idEntry == it }) {
+                logger.trace { "hasContactFormIndicators: Found contact form keyword in idEntry: $idEntry" }
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Counts the number of significant input fields (text inputs that aren't hidden or buttons).
+       This is a big underestimate but should prevent some false positive matches. Since we only
+       consider this in the absence of any password field, any false negatives are less critical 
+       but we can refine as more specific examples of problem apps/sites are revealed.
+     */
+    private fun countSignificantInputFields(): Int {
+        return allNodes.count { node ->
+            node.autofillType == View.AUTOFILL_TYPE_TEXT &&
+            node.className?.contains("EditText", ignoreCase = true) == true ||
+            (node.htmlInfo?.tag?.lowercase() == "input" &&
+             node.htmlInfo?.attributes?.none { it.first?.lowercase() == "type" && it.second?.lowercase() in listOf("hidden", "submit", "button", "reset") } == true)
+        }
+    }
+
     override fun toString(): String {
         return "AssistStructureParser(autoFillIds=$autoFillIds, packageNames=$packageNames, webDomains=$webDomains, fieldIds=$fieldIds)"
     }

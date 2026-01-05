@@ -158,7 +158,7 @@ class FlutterAutofillService : AutofillService() {
         // unless user manually forced a fill to a non-password form,
         // or there's a sign-in email field (multi-step login where password comes later)
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty() && !manuallyRequested) {
-            val hasSignInEmailField = parser.hasSignInEmailField()
+            val hasSignInEmailField = parser.hasSignInEmailOrUsernameField()
             if (!hasSignInEmailField) {
                 val detectedFields = parser.fieldIds.flatMap { it.value }.size
                 logger.info { "Debug: No password fields detected ($detectedFields total). Non-manual request and no sign-in email field so aborting." }
