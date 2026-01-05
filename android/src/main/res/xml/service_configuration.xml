@@ -22,7 +22,7 @@
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.android.chrome"
-    android:maxLongVersionCode="10000000000"/>
+    android:maxLongVersionCode="711900039"/>
   <compatibility-package
     android:name="com.android.htmlviewer"
     android:maxLongVersionCode="10000000000"/>
@@ -49,13 +49,13 @@
     android:maxLongVersionCode="10000000000"/>
   <compatibility-package
     android:name="com.chrome.beta"
-    android:maxLongVersionCode="10000000000"/>
+    android:maxLongVersionCode="711900039"/>
   <compatibility-package
     android:name="com.chrome.canary"
-    android:maxLongVersionCode="10000000000"/>
+    android:maxLongVersionCode="711900039"/>
   <compatibility-package
     android:name="com.chrome.dev"
-    android:maxLongVersionCode="10000000000"/>
+    android:maxLongVersionCode="711900039"/>
   <compatibility-package
     android:name="com.ecosia.android"
     android:maxLongVersionCode="10000000000"/>
