@@ -155,13 +155,18 @@ class FlutterAutofillService : AutofillService() {
         }
 
         // Do not launch main Flutter app if no password fields are found,
-        // unless user manually forced a fill to a non-password form
+        // unless user manually forced a fill to a non-password form,
+        // or there's a sign-in email field (multi-step login where password comes later)
         if (parser.fieldIds[AutofillInputType.Password].isNullOrEmpty() && !manuallyRequested) {
-            val detectedFields = parser.fieldIds.flatMap { it.value }.size
-            logger.info { "Debug: No password fields detected ($detectedFields total). Non-manual request so aborting." }
-            val response = if (saveInfoWasSet) fillResponseBuilder.build() else null
-            callback.onSuccess(response)
-            return
+            val hasSignInEmailField = parser.hasSignInEmailField()
+            if (!hasSignInEmailField) {
+                val detectedFields = parser.fieldIds.flatMap { it.value }.size
+                logger.info { "Debug: No password fields detected ($detectedFields total). Non-manual request and no sign-in email field so aborting." }
+                val response = if (saveInfoWasSet) fillResponseBuilder.build() else null
+                callback.onSuccess(response)
+                return
+            }
+            logger.info { "Debug: No password fields but sign-in email field detected. Proceeding with autofill for multi-step login." }
         }
 
         if (parser.packageNames.any { it in excludedPackages }) {

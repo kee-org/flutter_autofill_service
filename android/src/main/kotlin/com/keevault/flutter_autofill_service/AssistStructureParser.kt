@@ -113,12 +113,16 @@ class AssistStructureParser(structure: AssistStructure) {
 
     init {
         traverseStructure(structure)
+        val componentPkg = structure.activityComponent.packageName
+        logger.debug { "component package ID: $componentPkg" }
+        packageNames.add(componentPkg)
         normaliseParsedStructure()
     }
 
     private fun normaliseParsedStructure() {
         if (packageNames.isNotEmpty()) {
             packageNames.removeAll(excludedPackageIds)
+            packageNames.removeIf() {p -> p.startsWith("PopupWindow:")}
         }
         if (webDomains.isNotEmpty() && !packageNames.any { it in trustedCompatBrowsers + trustedNativeBrowsers }) {
             webDomains.clear()
@@ -133,8 +137,16 @@ class AssistStructureParser(structure: AssistStructure) {
 
         logger.debug { "Traversing windowNodes $windowNodes" }
         windowNodes.forEach { windowNode: AssistStructure.WindowNode ->
+            logger.debug { "windowNode title ${windowNode.title}" }
+            val titlePackage = extractPackageFromTitle(windowNode)
+            logger.debug { "title package ID: $titlePackage" }
+            titlePackage?.let { packageNames.add(it) }
             windowNode.rootViewNode?.let { traverseNode(it, "") }
         }
+    }
+
+    private fun extractPackageFromTitle(windowNode: AssistStructure.WindowNode): String? {
+        return windowNode.title.takeUnless { it.isNullOrBlank() }?.split('/')?.firstOrNull()
     }
 
     private fun Any.debugToString(): String =
@@ -207,6 +219,7 @@ class AssistStructureParser(structure: AssistStructure) {
         }
 
         viewNode.idPackage?.let { idPackage ->
+            logger.trace { "Package ID found: $idPackage" }
             packageNames.add(idPackage)
         }
         viewNode.webDomain?.let { webDomain ->
