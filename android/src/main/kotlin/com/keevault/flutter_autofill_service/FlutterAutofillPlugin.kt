@@ -244,7 +244,11 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         val activity = requireNotNull(this.activity)
         val structure = AssistStructureParser(structureParcel)
         var totalToReturn = 0
+        val isManualRequest = clientState.getBoolean("isManualRequest", false)
+        val focusedId = structure.focusedAutofillId
 
+        logger.debug { "isManualRequest: $isManualRequest" }
+        logger.debug { "focusedId: $focusedId" }
         logger.debug { "structure: $structure" }
         logger.info { "packageName: ${context.packageName}" }
 
@@ -296,6 +300,33 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         setId("test ${pw.username} ${pw.password} ${pw.label}")
 
                         val filledAutofillIds = mutableSetOf<AutofillId>()
+                        if (isManualRequest && focusedId != null) {
+                            val focusedType = structure.fieldIds.entries.find { it.value.any { mf -> mf.autofillId == focusedId } }?.key
+                            if (focusedType != null) {
+                                val valueForFocused = when (focusedType) {
+                                    AutofillInputType.Password, AutofillInputType.NewPassword -> if (pw.password.isNotBlank()) pw.password else ""
+                                    AutofillInputType.TOTP -> ""
+                                    else -> if (pw.username.isNotBlank()) pw.username else ""
+                                }
+                                if (valueForFocused.isNotBlank()) {
+                                    val focusedField = structure.fieldIds[focusedType]?.find { it.autofillId == focusedId }
+                                    if (focusedField != null) {
+                                        filledAutofillIds.add(focusedId)
+                                        configureDataset(
+                                            pw.label,
+                                            null,
+                                            respondInline && i < maxInlineSuggestionCount - 1,
+                                            isFillDialogRequest,
+                                            valueForFocused,
+                                            inlineRequest,
+                                            i,
+                                            false,
+                                            focusedField
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         structure.fieldIds.flatMap { mapEntry ->
                             mapEntry.value.map { mapEntry.key to it }
                         }.sortedByDescending { it.second.heuristic.weight }
@@ -339,8 +370,19 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 )
                             }
                     }
-                    addDataset(builder.build())
-                    totalToReturn++
+                    // If we have no fields in the parsed structure then we won't have added them to the builder.
+                    // So far we've only seen this happen when the user forces an autofill operation for a field
+                    // that would not normally be considered for autofill. More investigation is needed to
+                    // discover if there are steps we can take to reject their efforts at an earlier stage
+                    // or if we could modify the structure parser to better match with whatever field they
+                    // forced upon us. For now, we just make sure we don't crash.
+                    val dataset = try { builder.build() } catch (e: IllegalStateException) {
+                        null
+                    }
+                    if (dataset != null) {
+                        addDataset(dataset)
+                        totalToReturn++
+                    }
                 }
                 val matchHeaderDrawableName =
                     metaData.getString("com.keevault.flutter_autofill_service.match_header_drawable_name")
@@ -395,7 +437,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 ).intentSender
             }
 
-            fillResponseBuilder.addDataset(
+            val dataset =
                 selectAnotherEntryDataset(
                     structure,
                     metaData,
@@ -404,7 +446,15 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                     inlineRequest,
                     isFillDialogRequest
                 )
-            )
+            if (dataset != null) {
+                fillResponseBuilder.addDataset(dataset)
+            }
+
+            if (dataset == null && totalToReturn <= 0) {
+                resultWithNullDataset(result)
+                return
+            }
+
             val saveInfo = createSaveInfo(
                 clientState,
                 autoFillIdUsernameGuessed,
@@ -433,6 +483,28 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         setId("test ${pw.username} ${pw.password} ${pw.label}")
 
                         val filledAutofillIds = mutableSetOf<AutofillId>()
+                        if (isManualRequest && focusedId != null) {
+                            val focusedType = structure.fieldIds.entries.find { it.value.any { mf -> mf.autofillId == focusedId } }?.key
+                            if (focusedType != null) {
+                                val valueForFocused = when (focusedType) {
+                                    AutofillInputType.Password, AutofillInputType.NewPassword -> if (pw.password.isNotBlank()) pw.password else ""
+                                    AutofillInputType.TOTP -> ""
+                                    else -> if (pw.username.isNotBlank()) pw.username else ""
+                                }
+                                if (valueForFocused.isNotBlank()) {
+                                    val focusedField = structure.fieldIds[focusedType]?.find { it.autofillId == focusedId }
+                                    if (focusedField != null) {
+                                        filledAutofillIds.add(focusedId)
+                                        configureDatasetPreS(
+                                            pw.label,
+                                            null,
+                                            valueForFocused,
+                                            focusedField
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         structure.fieldIds.flatMap { mapEntry ->
                             mapEntry.value.map { mapEntry.key to it }
                         }.sortedByDescending { it.second.heuristic.weight }
@@ -470,10 +542,13 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                     field
                                 )
                             }
+                        }
+                        val dataset = try { builder.build() } catch (e: IllegalStateException) { null }
+                        if (dataset != null) {
+                            addDataset(dataset)
+                            totalToReturn++
+                        }
                     }
-                    addDataset(builder.build())
-                    totalToReturn++
-                }
                 val matchHeaderDrawableName =
                     metaData.getString("com.keevault.flutter_autofill_service.match_header_drawable_name")
                 val drawableId =
@@ -513,14 +588,21 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 PendingIntent.FLAG_CANCEL_CURRENT
             ).intentSender
 
-            fillResponseBuilder.addDataset(
-                selectAnotherEntryDatasetPreS(
-                    structure,
-                    metaData,
-                    selectAnotherEntryLabel,
-                    intentSender,
-                )
+            val dataset = selectAnotherEntryDatasetPreS(
+                structure,
+                metaData,
+                selectAnotherEntryLabel,
+                intentSender,
             )
+
+            if (dataset != null) {
+                fillResponseBuilder.addDataset(dataset)
+            }
+
+            if (dataset == null && totalToReturn <= 0) {
+            resultWithNullDataset(result)
+            return
+            }
             val saveInfo = createSaveInfo(
                 clientState,
                 autoFillIdUsernameGuessed,
@@ -538,6 +620,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             }
 
             activity.setResult(RESULT_OK, replyIntent)
+        }
+        if (totalToReturn == 0) {
+            resultWithNullDataset(result)
+            return
         }
         activity.finish()
         result.success(true)
@@ -823,7 +909,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         intentSender: IntentSender,
         inlineRequest: InlineSuggestionsRequest?,
         isFillDialogRequest: Boolean,
-    ) = Dataset.Builder().apply {
+    ) = try { Dataset.Builder().apply {
 
         structure.fieldIds.flatMap { entry ->
             entry.value.map { entry.key to it }
@@ -851,14 +937,19 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
         setId("test pick another item")
         setAuthentication(intentSender)
-    }.build()
+    }.build() } catch (e: IllegalStateException) {
+        logger.warn {
+                            "Failed to add pick another item dataset: $e"
+                        }
+        null
+    }
 
     private fun selectAnotherEntryDatasetPreS(
         structure: AssistStructureParser,
         metaData: Bundle,
         selectAnotherEntryLabel: String,
         intentSender: IntentSender,
-    ) = Dataset.Builder().apply {
+    ) = try { Dataset.Builder().apply {
 
         structure.fieldIds.flatMap { entry ->
             entry.value.map { entry.key to it }
@@ -881,7 +972,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
         setId("test pick another item")
         setAuthentication(intentSender)
-    }.build()
+    }.build() } catch (e: IllegalStateException) {
+        logger.warn {
+                            "Failed to add pick another item dataset: $e"
+                        }
+        null
+    }
 
     override fun onNewIntent(intent: Intent): Boolean {
         lastIntent = intent

@@ -131,6 +131,7 @@ class FlutterAutofillService : AutofillService() {
         fillDialogRequested = false
 
         clientState.putBoolean("isCompatMode", compatModeRequested)
+        clientState.putBoolean("isManualRequest", manuallyRequested)
         clientState.putBoolean("isFillDialogRequest", fillDialogRequested)
 
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()

@@ -24,6 +24,8 @@ class AssistStructureParser(structure: AssistStructure) {
     val fieldIds =
             mutableMapOf<AutofillInputType, MutableList<MatchedField>>()
 
+    var focusedAutofillId: AutofillId? = null
+
     private val excludedPackageIds: List<String> = listOf("android")
 
 
@@ -239,6 +241,7 @@ class AssistStructureParser(structure: AssistStructure) {
                 )
             }
         }
+        if (viewNode.isFocused) focusedAutofillId = viewNode.autofillId
 
         val children: List<ViewNode> =
                 viewNode.run {
