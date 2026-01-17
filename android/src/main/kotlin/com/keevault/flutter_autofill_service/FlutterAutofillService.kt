@@ -1,7 +1,6 @@
 package com.keevault.flutter_autofill_service
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
 import android.content.ComponentName
@@ -49,7 +48,6 @@ class FlutterAutofillService : AutofillService() {
         autofillPreferenceStore = AutofillPreferenceStore.getInstance(applicationContext)
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
         val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
-        //TODO: somehow force tracing to logcat at all times when in debug rather than release build mode?
         provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
         logger.debug { "Autofill service was created. debug: ${autofillPreferenceStore.autofillPreferences.enableDebug}" }
     }
@@ -400,10 +398,14 @@ data class SaveInfoMetadata(
 
 private val usernameHints = listOf(
         "username",
+        "user-name",
         "user",
         "uname",
         "email",
         "e-mail",
+        "emailaddress",
+        "email-address",
+        "email_address",
         "mail",
         "login",
         "user id",
@@ -459,7 +461,7 @@ private fun MutableList<AutofillHeuristic>.idEntry(weight: Int, matches: List<St
         heuristic(weight, "id", block) { idEntry?.lowercase()?.let { i -> matches.any { it in i} } ?: false }
 
 private fun MutableList<AutofillHeuristic>.htmlAttribute(weight: Int, attr: String, value: String) =
-        heuristic(weight, "html[$attr=$value]") { htmlInfo?.attributes?.firstOrNull { it.first == attr && it.second == value } != null }
+        heuristic(weight, "html[$attr=$value]") { htmlInfo?.attributes?.firstOrNull { it.first?.lowercase() == attr && it.second?.lowercase() == value } != null }
 
 private fun MutableList<AutofillHeuristic>.contentDescription(weight: Int, matches: List<String>, block: Boolean? = false) =
     heuristic(weight, "contentDescription", block) { contentDescription?.toString()?.lowercase()?.let { cd -> matches.contains(cd) } ?: false }
@@ -477,11 +479,25 @@ private fun MutableList<AutofillHeuristic>.defaults(hint: String, match: String)
     idEntry(700, listOf(match))
 }
 
+private fun MutableList<AutofillHeuristic>.htmlHint(weight: Int, attrName: String, matches: List<String>, block: Boolean? = false) {
+    heuristic(weight, "htmlHints $attrName", block) { htmlInfo?.attributes
+        ?.any {  it.first?.lowercase() == attrName && matches.any { m -> it.second?.lowercase() == m
+        } } ?: false }
+}
+
+private fun MutableList<AutofillHeuristic>.htmlHints(matches: List<String>, block: Boolean? = false) {
+    htmlHint(1000, "ua-autofill-hints", matches, block)
+    htmlHint(900, "computed-autofill-hints", matches, block)
+    htmlHint(800, "crowdsourcing-autofill-hints", matches, block)
+    htmlHint(700, "crowdsourcing-predictions-autofill-hints", matches, block)
+}
+
 enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
     Password(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_PASSWORD, "password")
         autofillHint(10000, "newPassword", true)
         autofillHint(10000, "newUsername", true)
+        htmlHints(listOf("pass", "password"))
         htmlAttribute(400, "type", "password")
         heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
         heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
@@ -493,15 +509,19 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         defaults(View.AUTOFILL_HINT_EMAIL_ADDRESS, "mail")
         autofillHint(10000, "newPassword", true)
         autofillHint(10000, "newUsername", true)
-        //TODO: In future might want to consider Email enum value both an existing and new username match?
+        htmlHints(listOf("email", "email-address", "email_address"))
         htmlAttribute(400, "type", "mail")
         htmlAttribute(300, "name", "mail")
         heuristic(250, "hint=mail") { hint?.lowercase(Locale.ROOT)?.contains("mail") == true }
+        heuristic(240, "text variation email") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) }
+        heuristic(239, "text variation web email") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) }
+        //TODO: In future might want to consider Email enum value both an existing and new username match?
     }),
     UserName(mutableListOf<AutofillHeuristic>().apply {
         defaults(View.AUTOFILL_HINT_USERNAME, "user")
         autofillHint(10000, "newPassword", true)
         autofillHint(10000, "newUsername", true)
+        htmlHints(listOf("user", "username"))
         htmlAttribute(400, "name", "user")
         htmlAttribute(400, "name", "username")
         nonAutofillHint(300, usernameHints)
