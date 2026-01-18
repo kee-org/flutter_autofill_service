@@ -1,7 +1,6 @@
 package com.keevault.flutter_autofill_service
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
 import android.content.ComponentName
@@ -49,7 +48,6 @@ class FlutterAutofillService : AutofillService() {
         autofillPreferenceStore = AutofillPreferenceStore.getInstance(applicationContext)
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
         val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
-        //TODO: somehow force tracing to logcat at all times when in debug rather than release build mode?
         provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
         logger.debug { "Autofill service was created. debug: ${autofillPreferenceStore.autofillPreferences.enableDebug}" }
     }

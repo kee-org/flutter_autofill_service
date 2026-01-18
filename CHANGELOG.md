@@ -1,3 +1,12 @@
+## 0.21.0
+
+* Improved support for autofilling into recent releases of the Google Chrome browser and apps that embed it
+* Update to Kotlin 2.2, Gradle 8.13 and Android API 36
+* Use additional data sources for determining the app package ID for filling - this may enable AutoFill in some apps that have previously not worked
+* Improved handling of multi-screen sign-in form detection
+* Improved detection of some username and password fields
+* Improved handling of manual (forced) requests
+
 ## 0.20.0
 
 * Support Kotlin v2
