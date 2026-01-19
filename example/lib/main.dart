@@ -14,6 +14,7 @@ void main() {
   runApp(const MyApp(false));
 }
 
+@pragma('vm:entry-point')
 void autofillEntryPoint() {
   Logger.root.level = Level.ALL;
   PrintAppender().attachToLogger(Logger.root);
