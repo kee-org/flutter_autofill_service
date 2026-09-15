@@ -47,8 +47,7 @@ class FlutterAutofillService : AutofillService() {
         super.onCreate()
         autofillPreferenceStore = AutofillPreferenceStore.getInstance(applicationContext)
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
-        val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
-        provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
+        DynamicLevelLoggingProvider.setActiveLevel(if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF)
         logger.debug { "Autofill service was created. debug: ${autofillPreferenceStore.autofillPreferences.enableDebug}" }
     }
 
@@ -58,8 +57,7 @@ class FlutterAutofillService : AutofillService() {
         // Make sure we have the latest log level configuration each time we are asked to start the autofill procedure.
         // Android may re-use the same process for a long time and we may have had the shared preferences updated from
         // a different process/task in the mean time.
-        val provider = org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider;
-        provider.activeLevel = if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF;
+        DynamicLevelLoggingProvider.setActiveLevel(if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF)
 
         // If the user has just deleted the autofill logs through the main app, the file handle
         // already open from this process will remain the active destination for new log entries

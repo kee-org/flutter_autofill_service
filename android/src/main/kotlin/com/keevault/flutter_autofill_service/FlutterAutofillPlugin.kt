@@ -166,10 +166,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 autofillPreferenceStore.autofillPreferences = prefs
 
                 // Make sure we have the latest log level configuration
-                val provider =
-                    org.tinylog.provider.ProviderRegistry.getLoggingProvider() as DynamicLevelLoggingProvider
-                provider.activeLevel =
+                DynamicLevelLoggingProvider.setActiveLevel(
                     if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF
+                )
                 result.success(true)
             }
 

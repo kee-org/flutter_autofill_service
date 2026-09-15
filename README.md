@@ -30,6 +30,17 @@ If your meta-data references a drawable that you do not already reference from e
 
 If you'd like to see this demonstrated in a real world example app, take a look at the Kee Vault app - https://github.com/kee-org/keevault2/
 
+### Logging
+
+This plugin logs via tinylog/slf4j and includes a custom tinylog `LoggingProvider` (`DynamicLevelLoggingProvider`) which lets the debug log level be toggled at runtime from your Flutter code (via the `enableDebug` preference) without restarting the app. To wire this up, copy the example app's resource files into your own app:
+
+* `android/app/src/main/resources/tinylog.properties`
+* `android/app/src/main/resources/META-INF/services/org.tinylog.provider.LoggingProvider`
+
+These are plain JVM classpath resources, not Android resources, so Gradle does not merge them in from this plugin automatically - each consuming app must provide its own copies (and can customise `tinylog.properties`, e.g. writer/output configuration, to suit). If you skip this step, tinylog falls back to its own default provider: dynamic level switching won't work, but the plugin will not crash because of it.
+
+If your app runs Android instrumentation tests (e.g. via Patrol) and those tests exercise code that logs through SLF4J outside of your own app code (such as a test-only embedded server), you generally don't need this plugin's dynamic logging in that process. The simplest option is to disable tinylog for the `androidTest` variant entirely by adding an `android/app/src/androidTest/resources/tinylog.properties` containing just `level = off` - androidTest resources take precedence over `main` for the test APK, so this overrides the properties above without affecting your real app builds.
+
 ## Planned
 
 * Respond to any inaccuracies in matching code algorithms for existing or new Android versions. We don't know if the current behaviour is perfect but suspect there is room for some improved heuristics.
