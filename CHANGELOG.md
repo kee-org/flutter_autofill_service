@@ -1,3 +1,8 @@
+## 0.22.0
+
+* Improved documentation and resilience of logging configuration
+* Update to Gradle 9
+
 ## 0.21.0
 
 * Improved support for autofilling into recent releases of the Google Chrome browser and apps that embed it
