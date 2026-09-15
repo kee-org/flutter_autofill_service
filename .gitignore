@@ -52,3 +52,4 @@ app.*.map.json
 example/android/app/.cxx/
 
 example/android/app/local.properties
+pubspec.lock
