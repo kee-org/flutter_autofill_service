@@ -1,6 +1,5 @@
 plugins {
     id "com.android.application"
-    id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -24,11 +23,11 @@ if (flutterVersionName == null) {
 
 android {
     compileSdk 36
+    ndkVersion = flutter.ndkVersion
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }
-
 
     defaultConfig {
         applicationId "com.keevault.flutter_autofill_service_example"
@@ -41,8 +40,6 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig signingConfigs.debug
         }
     }
@@ -55,9 +52,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-        //jvmToolchain(17)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
