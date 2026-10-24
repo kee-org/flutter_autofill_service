@@ -274,7 +274,7 @@ class FlutterAutofillService : AutofillService() {
         try {
             callback.onSuccess(fillResponseBuilder.build())
         } catch (e: TransactionTooLargeException) {
-            logger.error("Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.packageNames}")
+            logger.error({ "Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.packageNames}" })
             throw RuntimeException(
                 "Too many auto fill ids discovered ${autoFillIds.size} for " +
                         "${parser.webDomains},  ${parser.packageNames}",
