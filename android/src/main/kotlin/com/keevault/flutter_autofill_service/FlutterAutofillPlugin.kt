@@ -186,7 +186,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     private fun hideSensitiveMetadata(metadata: AutofillMetadata?): String {
         if (metadata == null) return ""
-        return "names: ${metadata.packageNames}, domains: ${metadata.webDomains}, compatMode: ${metadata.saveInfo?.isCompatMode}"
+        return "appId: ${metadata.appId} (trusted:${metadata.appIdTrusted}), domains: ${metadata.webDomains}, compatMode: ${metadata.saveInfo?.isCompatMode}"
     }
 
     private fun getDrawable(name: String): Int {
@@ -244,7 +244,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
 
         val activity = requireNotNull(this.activity)
-        val structure = AssistStructureParser(structureParcel)
+        val structure = AssistStructureParser(structureParcel, context)
+        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
         var totalToReturn = 0
         val isManualRequest = clientState.getBoolean("isManualRequest", false)
         val focusedId = structure.focusedAutofillId
@@ -415,11 +416,14 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             logger.debug { "got activity $activityName" }
             val startIntent = getStartIntent(
                 activityName,
-                structure.packageNames,
+                structure.appId,
+                structure.appIdTrusted,
                 structure.webDomains,
                 context,
                 "/autofill_select",
-                null
+                null,
+                structure.isWebOrigin,
+                structure.dalVerified
             )
             val intentSender: IntentSender
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -575,11 +579,14 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             logger.debug { "got activity $activityName" }
             val startIntent = getStartIntent(
                 activityName,
-                structure.packageNames,
+                structure.appId,
+                structure.appIdTrusted,
                 structure.webDomains,
                 context,
                 "/autofill_select",
-                null
+                null,
+                structure.isWebOrigin,
+                structure.dalVerified
             )
             val intentSender: IntentSender
             @SuppressLint("UnspecifiedImmutableFlag")
@@ -651,7 +658,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
 
         val activity = requireNotNull(this.activity)
-        val structure = AssistStructureParser(structureParcel)
+        val structure = AssistStructureParser(structureParcel, context)
+        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
         logger.debug { "structure: $structure" }
         logger.info { "packageName: ${context.packageName}" }
 
@@ -661,16 +669,17 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             )
         }
 
+        var autoFillIdPasswordMatched: AutofillId? = null
+        var autoFillIdUsernameMatched: AutofillId? = null
+        val (autoFillIdPasswordGuessed, autoFillIdUsernameGuessed) = SaveHelper.guessAutofillIdsForSave(
+            structure
+        )
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val (isFillDialogRequest, inlineRequest: InlineSuggestionsRequest?, maxInlineSuggestionCount) = extractClientState(
                 clientState
             )
 
-            // Ignore IMEs that only allow one item because we require at least two.
-            // We are returning a single dataset so maybe this restriction is not
-            // needed? but then again maybe it would be confusing for user to see their
-            // selected item come up in the keyboard only after picking a different
-            // entry so we use this as a proxy for when we need to disable IME integration
             val respondInline = maxInlineSuggestionCount >= 2
 
             val builder =
@@ -692,6 +701,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         return@allIds
                     }
 
+                    if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                        autoFillIdPasswordMatched = field.autofillId
+                    } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                        autoFillIdUsernameMatched = field.autofillId
+                    }
+
                     val autoFillValue = when (type) {
                         AutofillInputType.Password, AutofillInputType.NewPassword -> pwDataset.password
                         AutofillInputType.TOTP -> ""
@@ -711,11 +726,26 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
                 }
             }
-            val datasetResponse = builder.build()
+            val dataset = builder.build()
+
+            val fillResponseBuilder = FillResponse.Builder().apply {
+                addDataset(dataset)
+                setClientState(clientState)
+            }
+
+            val saveInfo = createSaveInfo(
+                clientState,
+                autoFillIdUsernameGuessed,
+                autoFillIdPasswordGuessed,
+                autoFillIdUsernameMatched,
+                autoFillIdPasswordMatched
+            )
+            saveInfo?.let { fillResponseBuilder.setSaveInfo(it) }
+
+            val fillResponse = fillResponseBuilder.build()
 
             val replyIntent = Intent().apply {
-                // Send the data back to the service.
-                    putExtra(EXTRA_AUTHENTICATION_RESULT_EPHEMERAL_DATASET, datasetResponse)
+                putExtra(EXTRA_AUTHENTICATION_RESULT, fillResponse)
             }
 
             activity.setResult(RESULT_OK, replyIntent)
@@ -739,6 +769,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                             return@allIds
                         }
 
+                        if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                            autoFillIdPasswordMatched = field.autofillId
+                        } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                            autoFillIdUsernameMatched = field.autofillId
+                        }
+
                         val autoFillValue = when (type) {
                             AutofillInputType.Password, AutofillInputType.NewPassword -> pwDataset.password
                             AutofillInputType.TOTP -> ""
@@ -753,11 +789,26 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
                     }
             }
-            val datasetResponse = builder.build()
+            val dataset = builder.build()
+
+            val fillResponseBuilder = FillResponse.Builder().apply {
+                addDataset(dataset)
+                setClientState(clientState)
+            }
+
+            val saveInfo = createSaveInfo(
+                clientState,
+                autoFillIdUsernameGuessed,
+                autoFillIdPasswordGuessed,
+                autoFillIdUsernameMatched,
+                autoFillIdPasswordMatched
+            )
+            saveInfo?.let { fillResponseBuilder.setSaveInfo(it) }
+
+            val fillResponse = fillResponseBuilder.build()
 
             val replyIntent = Intent().apply {
-                // Send the data back to the service.
-                putExtra(EXTRA_AUTHENTICATION_RESULT, datasetResponse)
+                putExtra(EXTRA_AUTHENTICATION_RESULT, fillResponse)
             }
 
             activity.setResult(RESULT_OK, replyIntent)

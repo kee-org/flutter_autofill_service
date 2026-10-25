@@ -99,7 +99,8 @@ class FlutterAutofillService : AutofillService() {
         logger.info { "Got fill request $request" }
 
         val context = request.fillContexts.last()
-        val parser = AssistStructureParser(context.structure)
+        val parser = AssistStructureParser(context.structure, this)
+        logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, dalVerified=${parser.dalVerified}" }
 
         val autoFillIds = parser.autoFillIds.distinct()
         var useLabel = unlockLabel
@@ -166,7 +167,13 @@ class FlutterAutofillService : AutofillService() {
             logger.info { "Debug: No password fields but sign-in email field detected. Proceeding with autofill for multi-step login." }
         }
 
-        if (parser.packageNames.any { it in excludedPackages }) {
+        if (parser.componentPackage != null && parser.componentPackage in excludedPackages) {
+            callback.onSuccess(null)
+            return
+        } else if (parser.nodeIdPackages.any { it in excludedPackages }) {
+            callback.onSuccess(null)
+            return
+        } else if (parser.titlePackages.any { it in excludedPackages }) {
             callback.onSuccess(null)
             return
         }
@@ -180,11 +187,14 @@ class FlutterAutofillService : AutofillService() {
 
         val startAuthIntent = IntentHelpers.getStartIntent(
             activityName,
-            parser.packageNames,
+            parser.appId,
+            parser.appIdTrusted,
             parser.webDomains,
             applicationContext,
             "/autofill",
-            null
+            null,
+            parser.isWebOrigin,
+            parser.dalVerified
         )
         //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
         val pendingIntent: PendingIntent
@@ -266,7 +276,7 @@ class FlutterAutofillService : AutofillService() {
         }
         logger.info {
             "remoteView for packageName: $packageName -- " +
-                    "detected autofill packageNames: ${parser.packageNames} " +
+                    "detected autofill appId: ${parser.appId} (trusted:${parser.appIdTrusted}) " +
                     "webDomains: ${parser.webDomains}" +
                     "autoFillIds: ${autoFillIds.size}"
         }
@@ -274,10 +284,10 @@ class FlutterAutofillService : AutofillService() {
         try {
             callback.onSuccess(fillResponseBuilder.build())
         } catch (e: TransactionTooLargeException) {
-            logger.error({ "Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.packageNames}" })
+            logger.error({ "Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.appId} (trusted:${parser.appIdTrusted})" })
             throw RuntimeException(
                 "Too many auto fill ids discovered ${autoFillIds.size} for " +
-                        "${parser.webDomains},  ${parser.packageNames}",
+                        "${parser.webDomains}, ${parser.appId}",
                 e
             )
         }
@@ -299,11 +309,15 @@ class FlutterAutofillService : AutofillService() {
         val passwordId = clientState.getParcelable<AutofillId>("passwordId")
         var username: String? = null
         var password: String? = null
-        var packageNames: Set<String>? = null
+        var appId: String? = null
+        var appIdTrusted: Boolean = false
         var webDomains: Set<WebDomain>? = null
+        var isWebOrigin: Boolean = false
+        var dalVerified: Boolean = false
 
         request.fillContexts.reversed().forEach { context ->
-            val parser = AssistStructureParser(context.structure)
+            val parser = AssistStructureParser(context.structure, this)
+            logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, dalVerified=${parser.dalVerified}" }
             val usernameNode = parser.findNodeByAutofillId(usernameId)
             val passwordNode = parser.findNodeByAutofillId(passwordId)
             try {
@@ -320,11 +334,16 @@ class FlutterAutofillService : AutofillService() {
             } catch (ex: IllegalStateException) {
                 logger.warn { "password autofill value was not text." }
             }
-            if (packageNames == null) {
-                packageNames = parser.packageNames
+            // The first fill context that contains an appId or set of web domains becomes our
+            // consistent picture of whether they are trustworthy or not
+            if (appId == null && parser.appId != null) {
+                appId = parser.appId
+                appIdTrusted = parser.appIdTrusted
             }
-            if (webDomains == null) {
+            if (webDomains == null && parser.webDomains.isNotEmpty()) {
                 webDomains = parser.webDomains
+                isWebOrigin = parser.isWebOrigin
+                dalVerified = parser.dalVerified
             }
         }
         val isCompatMode =
@@ -332,13 +351,14 @@ class FlutterAutofillService : AutofillService() {
 
         val startIntent = IntentHelpers.getStartIntent(
             activityName,
-            packageNames
-                ?: setOf(),
-            webDomains
-                ?: setOf(),
+            appId,
+            appIdTrusted,
+            webDomains ?: setOf(),
             applicationContext,
             "/autofill_save",
-            SaveInfoMetadata(username, password, isCompatMode)
+            SaveInfoMetadata(username, password, isCompatMode),
+            isWebOrigin,
+            dalVerified
         )
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(startIntent)
@@ -350,8 +370,11 @@ class FlutterAutofillService : AutofillService() {
 
 @JsonClass(generateAdapter = true)
 data class AutofillMetadata(
-        val packageNames: Set<String>,
+        val appId: String? = null,
+        val appIdTrusted: Boolean = false,
         val webDomains: Set<WebDomain>,
+        val isWebOrigin: Boolean = false,
+        val dalVerified: Boolean = false,
         val saveInfo: SaveInfoMetadata?
 ) {
     companion object {

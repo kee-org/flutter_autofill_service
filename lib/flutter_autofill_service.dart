@@ -165,36 +165,46 @@ class AutofillService {
 
 class AutofillMetadata {
   AutofillMetadata({
-    required this.packageNames,
+    this.appId,
+    this.appIdTrusted = false,
     required this.webDomains,
+    this.isWebOrigin = false,
+    this.dalVerified = false,
     required this.saveInfo,
   });
   factory AutofillMetadata.fromJson(Map<dynamic, dynamic> json) {
     final saveInfoJson = json['saveInfo'] as Map<dynamic, dynamic>?;
     return AutofillMetadata(
-      packageNames: (json['packageNames'] as Iterable)
-          .map((dynamic e) => e as String)
-          .toSet(),
+      appId: json['appId'] as String?,
+      appIdTrusted: json['appIdTrusted'] as bool? ?? false,
       webDomains: ((json['webDomains'] as Iterable?)
               ?.map((dynamic e) =>
                   AutofillWebDomain.fromJson(e as Map<dynamic, dynamic>))
               .toSet()) ??
           {},
+      isWebOrigin: json['isWebOrigin'] as bool? ?? false,
+      dalVerified: json['dalVerified'] as bool? ?? false,
       saveInfo:
           saveInfoJson != null ? SaveInfoMetadata.fromJson(saveInfoJson) : null,
     );
   }
 
-  final Set<String> packageNames;
+  final String? appId;
+  final bool appIdTrusted;
   final Set<AutofillWebDomain> webDomains;
+  final bool isWebOrigin;
+  final bool dalVerified;
   final SaveInfoMetadata? saveInfo;
 
   @override
   String toString() => toJson().toString();
 
   Map<String, Object?> toJson() => {
-        'packageNames': packageNames,
+        if (appId != null) 'appId': appId!,
+        'appIdTrusted': appIdTrusted,
         'webDomains': webDomains.map((e) => e.toJson()),
+        'isWebOrigin': isWebOrigin,
+        'dalVerified': dalVerified,
         'saveInfo': saveInfo
       };
 }
