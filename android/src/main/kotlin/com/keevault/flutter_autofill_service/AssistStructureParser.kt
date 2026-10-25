@@ -1,6 +1,9 @@
 package com.keevault.flutter_autofill_service
 
 import android.app.assist.AssistStructure
+import android.content.Context
+import android.content.pm.verify.domain.DomainVerificationManager
+import android.content.pm.verify.domain.DomainVerificationUserState
 import android.os.*
 import android.view.*
 import android.view.autofill.AutofillId
@@ -13,13 +16,23 @@ private val logger = KotlinLogging.logger {}
 @JsonClass(generateAdapter = true)
 data class WebDomain(val scheme: String?, val domain: String)
 
-class AssistStructureParser(structure: AssistStructure) {
+class AssistStructureParser(structure: AssistStructure, private val context: Context) {
 
     val autoFillIds = mutableListOf<AutofillId>()
     val allNodes = mutableListOf<ViewNode>()
 
-    var packageNames = HashSet<String>()
+    var componentPackage: String? = null
+    val nodeIdPackages = HashSet<String>()
+    val titlePackages = HashSet<String>()
     var webDomains = HashSet<WebDomain>()
+
+    var appId: String? = null
+    var appIdTrusted: Boolean = false
+
+    var isWebOrigin: Boolean = false
+        private set
+    var dalVerified: Boolean = false
+        private set
 
     val fieldIds =
             mutableMapOf<AutofillInputType, MutableList<MatchedField>>()
@@ -115,19 +128,97 @@ class AssistStructureParser(structure: AssistStructure) {
 
     init {
         traverseStructure(structure)
-        val componentPkg = structure.activityComponent.packageName
+        val componentPkg = structure.activityComponent?.packageName
         logger.debug { "component package ID: $componentPkg" }
-        packageNames.add(componentPkg)
+        componentPkg?.let {
+            componentPackage = it
+        }
         normaliseParsedStructure()
     }
 
     private fun normaliseParsedStructure() {
-        if (packageNames.isNotEmpty()) {
-            packageNames.removeAll(excludedPackageIds)
-            packageNames.removeIf() {p -> p.startsWith("PopupWindow:")}
+        componentPackage?.let {
+            if (excludedPackageIds.contains(it)) {
+                componentPackage = null
+            }
         }
-        if (webDomains.isNotEmpty() && !packageNames.any { it in trustedCompatBrowsers + trustedNativeBrowsers }) {
+        nodeIdPackages.removeAll(excludedPackageIds)
+        titlePackages.removeAll(excludedPackageIds)
+        titlePackages.removeIf() { p -> p.startsWith("PopupWindow:") }
+
+        // Determine appId with priority: componentPackage (packageName) > nodeIdPackages (idPackage) > titlePackages (title)
+        when {
+            componentPackage != null -> {
+                appId = componentPackage
+                appIdTrusted = true
+            }
+            nodeIdPackages.isNotEmpty() -> {
+                appId = nodeIdPackages.firstOrNull()
+                appIdTrusted = true
+            }
+            titlePackages.isNotEmpty() -> {
+                appId = titlePackages.firstOrNull()
+                appIdTrusted = false
+            }
+            else -> {
+                appId = null
+                appIdTrusted = false
+            }
+        }
+
+        verifyDigitalAssetLinks()
+    }
+
+    private fun verifyDigitalAssetLinks() {
+        isWebOrigin = webDomains.isNotEmpty()
+        if (!isWebOrigin) {
+            // No web origin means there is nothing to verify against.
+            dalVerified = true
+            return
+        }
+        // Known trusted browsers render web content legitimately and are not claiming
+        // to own the domains they display, so they are always considered verified.
+        // This short-circuits before the DAL check, otherwise common cases like Chrome
+        // loading an arbitrary site would fail verification (browsers don't publish
+        // assetlinks.json for every domain they render).
+        if ((componentPackage != null && componentPackage!! in trustedCompatBrowsers + trustedNativeBrowsers) ||
+            nodeIdPackages.any { it in trustedCompatBrowsers + trustedNativeBrowsers }) {
+            dalVerified = true
+            logger.debug { "DAL: trusted browser allowlist hit for packages component=$componentPackage nodeIds=$nodeIdPackages, dalVerified=true" }
+            return
+        }
+        // A non-browser app presenting a web origin is suspicious: verify that it
+        // actually owns the domain via Digital Asset Links. This is the AutoFail
+        // threat model — an app masquerading as a site the user has credentials for.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(Context.DOMAIN_VERIFICATION_SERVICE) as DomainVerificationManager
+            for (pkg in listOfNotNull(componentPackage) + nodeIdPackages) {
+                try {
+                    val userState = manager.getDomainVerificationUserState(pkg) ?: continue
+                    val hostMap = userState.getHostToStateMap() ?: continue
+                    for (domain in webDomains) {
+                        val state = hostMap[domain.domain]
+                        if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED ||
+                                state == DomainVerificationUserState.DOMAIN_STATE_SELECTED) {
+                            dalVerified = true
+                            logger.debug { "DAL verified: $pkg is verified/selected for domain ${domain.domain} (state=$state)" }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.warn { "DAL verification check failed for package $pkg: ${e.message}" }
+                }
+            }
+            if (!dalVerified) {
+                logger.warn { "DAL verification FAILED for web origins ${webDomains.map { it.domain }} from packages component=$componentPackage nodeIds=$nodeIdPackages" }
+            }
+        } else {
+            // API 29-30: no public DAL query API exists (DomainVerificationManager is API 31+,
+            // and GET_DOMAIN_VERIFICATION / PackageInfo.domainVerificationInfo are @hide).
+            // Preserve prior behaviour: strip the web origins so unverified non-browser
+            // apps cannot match saved credentials.
+            dalVerified = false
             webDomains.clear()
+            logger.debug { "API < 31, no DAL query API available; stripped web origins for non-browser packages component=$componentPackage nodeIds=$nodeIdPackages" }
         }
     }
 
@@ -142,7 +233,7 @@ class AssistStructureParser(structure: AssistStructure) {
             logger.debug { "windowNode title ${windowNode.title}" }
             val titlePackage = extractPackageFromTitle(windowNode)
             logger.debug { "title package ID: $titlePackage" }
-            titlePackage?.let { packageNames.add(it) }
+            titlePackage?.let { titlePackages.add(it) }
             windowNode.rootViewNode?.let { traverseNode(it, "") }
         }
     }
@@ -220,7 +311,7 @@ class AssistStructureParser(structure: AssistStructure) {
 
         viewNode.idPackage?.let { idPackage ->
             logger.trace { "Package ID found: $idPackage" }
-            packageNames.add(idPackage)
+            nodeIdPackages.add(idPackage)
         }
         viewNode.webDomain?.let { webDomain ->
             if (webDomain.isNotEmpty()) {
@@ -410,7 +501,7 @@ class AssistStructureParser(structure: AssistStructure) {
     }
 
     override fun toString(): String {
-        return "AssistStructureParser(autoFillIds=$autoFillIds, packageNames=$packageNames, webDomains=$webDomains, fieldIds=$fieldIds)"
+        return "AssistStructureParser(autoFillIds=$autoFillIds, appId=$appId, appIdTrusted=$appIdTrusted, componentPackage=$componentPackage, nodeIdPackages=$nodeIdPackages, titlePackages=$titlePackages, webDomains=$webDomains, isWebOrigin=$isWebOrigin, dalVerified=$dalVerified, fieldIds=$fieldIds)"
     }
 
 
