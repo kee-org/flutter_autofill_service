@@ -157,7 +157,7 @@ class AssistStructureParser(structure: AssistStructure) {
                 is Bundle -> keySet().map {
                     it to get(it)?.toString()
                 }.toString()
-                is ViewStructure.HtmlInfo -> "HtmlInfo{<$tag ${attributes?.joinToString(" ") { "${it.first}=\"${it.second}\"" }}>}"
+                is ViewStructure.HtmlInfo -> "HtmlInfo{<$tag ${attributes?.filter { it.first?.lowercase() != "value" }?.joinToString(" ") { "${it.first}=\"${it.second}\"" }}>}"
                 else -> this.toString()
             }
 
@@ -191,8 +191,6 @@ class AssistStructureParser(structure: AssistStructure) {
                         viewNode::getAutofillHints,
                         viewNode::getAutofillOptions,
                         viewNode::getAutofillType,
-                        viewNode::getAutofillValue,
-                        viewNode::getText,
                         viewNode::getHint,
                         viewNode::getIdEntry,
                         viewNode::getIdPackage,
@@ -209,7 +207,7 @@ class AssistStructureParser(structure: AssistStructure) {
                         ))
                         .map { it.name.replaceFirst("get", "") to it.invoke()?.debugToString() }
         logger.trace { "$depth ` ViewNode: ${debug.filter { it.second != null }.toList()}" }
-        logger.trace { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} autofillValue:${viewNode.autofillValue} " }
+        logger.trace { "$depth     We got autofillId: ${viewNode.autofillId} autofillOptions:${viewNode.autofillOptions} autofillType:${viewNode.autofillType} hints:${viewNode.autofillHints?.contentToString()} hasValue:${viewNode.autofillValue != null} valueLen:${viewNode.autofillValue?.toString()?.length ?: 0} className:${viewNode.className} inputType:${viewNode.inputType} " }
 
         if (viewNode.autofillHints?.isNotEmpty() == true) {
             // If the client app provides autofill hints, you can obtain them using:
@@ -217,7 +215,7 @@ class AssistStructureParser(structure: AssistStructure) {
         } else {
             // Or use your own heuristics to describe the contents of a view
             // using methods such as getText() or getHint().
-            logger.trace { "$depth     viewNode no hints, text:${viewNode.text} and hint:${viewNode.hint} and inputType:${viewNode.inputType}" }
+            logger.trace { "$depth     viewNode no hints, className:${viewNode.className} hint:${viewNode.hint} inputType:${viewNode.inputType}" }
         }
 
         viewNode.idPackage?.let { idPackage ->
