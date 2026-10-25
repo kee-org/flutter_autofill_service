@@ -14,6 +14,7 @@ enum AutofillServiceStatus {
 
 class PwDataset {
   PwDataset({
+    this.id,
     /*required*/
     required this.label,
     /*required*/
@@ -21,6 +22,7 @@ class PwDataset {
     /*required*/
     required this.password,
   });
+  String? id;
   String label;
   String username;
   String password;
@@ -121,9 +123,10 @@ class AutofillService {
   }
 
   Future<bool> resultWithDataset(
-      {String? label, String? username, String? password}) async {
+      {String? id, String? label, String? username, String? password}) async {
     return (await _channel.invokeMethod<bool>(
             'resultWithDataset', <String, dynamic>{
+          'id': id,
           'label': label,
           'username': username,
           'password': password
@@ -135,6 +138,7 @@ class AutofillService {
     return (await _channel.invokeMethod<bool>('resultWithDatasets', {
           'datasets': datasets
               ?.map((d) => <String, dynamic>{
+                    'id': d.id,
                     'label': d.label,
                     'username': d.username,
                     'password': d.password

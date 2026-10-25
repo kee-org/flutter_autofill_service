@@ -44,6 +44,7 @@ import org.tinylog.Level
 private val logger = KotlinLogging.logger {}
 
 data class PwDataset(
+    val id: String? = null,
     val label: String,
     val username: String,
     val password: String
@@ -137,6 +138,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         m["username"]?.let { it1 ->
                             m["password"]?.let { it2 ->
                                 PwDataset(
+                                    m["id"],
                                     it,
                                     it1,
                                     it2
@@ -196,13 +198,14 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     }
 
     private fun resultWithDataset(call: MethodCall, result: Result) {
+        val id = call.argument<String>("id")
         val label = call.argument<String>("label") ?: "Autofill"
         val username = call.argument<String>("username") ?: ""
         val password = call.argument<String>("password") ?: ""
         if (password.isBlank()) {
             logger.warn { "No known password." }
         }
-        resultWithDataset(PwDataset(label, username, password), result)
+        resultWithDataset(PwDataset(id, label, username, password), result)
     }
 
     private fun resultWithNullDataset(result: Result) {
@@ -296,7 +299,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         isFillDialogRequest
                     )
                     builder.apply {
-                        setId("test ${pw.username} ${pw.password} ${pw.label}")
+                        setId(pw.id ?: "ds-$i")
 
                         val filledAutofillIds = mutableSetOf<AutofillId>()
                         if (isManualRequest && focusedId != null) {
@@ -479,7 +482,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 pwDatasets.take(10).forEachIndexed { i, pw ->
                     val builder = Dataset.Builder(remoteViews())
                     builder.apply {
-                        setId("test ${pw.username} ${pw.password} ${pw.label}")
+                        setId(pw.id ?: "ds-$i")
 
                         val filledAutofillIds = mutableSetOf<AutofillId>()
                         if (isManualRequest && focusedId != null) {
@@ -673,7 +676,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             val builder =
                 createDatasetBuilder(remoteViews, respondInline, inlineRequest, isFillDialogRequest)
             builder.apply {
-                setId("test ${pwDataset.username} ${pwDataset.password} ${pwDataset.label}")
+                setId(pwDataset.id ?: "ds-0")
                 val filledAutofillIds = mutableSetOf<AutofillId>()
                 structure.fieldIds.flatMap { entry ->
                     entry.value.map { entry.key to it }
@@ -719,7 +722,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         } else {
             val builder = Dataset.Builder(remoteViews())
             builder.apply {
-                setId("test ${pwDataset.username} ${pwDataset.password} ${pwDataset.label}")
+                setId(pwDataset.id ?: "ds-0")
                 val filledAutofillIds = mutableSetOf<AutofillId>()
                 structure.fieldIds.flatMap { entry ->
                     entry.value.map { entry.key to it }
@@ -934,7 +937,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 field
             )
         }
-        setId("test pick another item")
+        setId("select-another")
         setAuthentication(intentSender)
     }.build() } catch (e: IllegalStateException) {
         logger.warn {
@@ -969,7 +972,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 field
             )
         }
-        setId("test pick another item")
+        setId("select-another")
         setAuthentication(intentSender)
     }.build() } catch (e: IllegalStateException) {
         logger.warn {
