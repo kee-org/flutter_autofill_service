@@ -215,6 +215,7 @@ class AutofillMetadata {
     required this.webDomains,
     this.isWebOrigin = false,
     this.dalVerified = false,
+    this.appIsBrowser = false,
     required this.saveInfo,
   });
   factory AutofillMetadata.fromJson(Map<dynamic, dynamic> json) {
@@ -229,6 +230,7 @@ class AutofillMetadata {
           {},
       isWebOrigin: json['isWebOrigin'] as bool? ?? false,
       dalVerified: json['dalVerified'] as bool? ?? false,
+      appIsBrowser: json['appIsBrowser'] as bool? ?? false,
       saveInfo:
           saveInfoJson != null ? SaveInfoMetadata.fromJson(saveInfoJson) : null,
     );
@@ -239,6 +241,13 @@ class AutofillMetadata {
   final Set<AutofillWebDomain> webDomains;
   final bool isWebOrigin;
   final bool dalVerified;
+
+  /// True if [appId] is a web browser (built-in allowlist, or an app that handles
+  /// generic https links). A browser's package id is not an app identity, so do not
+  /// match or learn entries by [appId] when this is true, unless you want to maintain
+  /// an override list of known non-browser apps that handle https links (e.g. RSS
+  /// readers, "Read it later apps", etc.). Does not affect [dalVerified].
+  final bool appIsBrowser;
   final SaveInfoMetadata? saveInfo;
 
   @override
@@ -250,6 +259,7 @@ class AutofillMetadata {
         'webDomains': webDomains.map((e) => e.toJson()),
         'isWebOrigin': isWebOrigin,
         'dalVerified': dalVerified,
+        'appIsBrowser': appIsBrowser,
         'saveInfo': saveInfo
       };
 }

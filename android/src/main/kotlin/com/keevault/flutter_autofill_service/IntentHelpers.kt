@@ -8,7 +8,7 @@ object IntentHelpers {
     const val REQUEST_CODE_UNLOCK = 1230 // service: initial unlock
     const val REQUEST_CODE_SELECT_ANOTHER = 1231 // plugin: "Use a different entry"
 
-    fun getStartIntent(activityName: String, appId: String?, appIdTrusted: Boolean, webDomains: Set<WebDomain>, context: Context, autofillMode: String, saveInfo: SaveInfoMetadata?, isWebOrigin: Boolean = false, dalVerified: Boolean = false): Intent {
+    fun getStartIntent(activityName: String, appId: String?, appIdTrusted: Boolean, webDomains: Set<WebDomain>, context: Context, autofillMode: String, saveInfo: SaveInfoMetadata?, isWebOrigin: Boolean = false, dalVerified: Boolean = false, appIsBrowser: Boolean = false): Intent {
         val startIntent = Intent()
         startIntent.setClassName(context, activityName)
         startIntent.putExtra("autofill_mode", autofillMode)
@@ -17,7 +17,7 @@ object IntentHelpers {
         // https://stackoverflow.com/a/39478479/109219
         startIntent.putExtra(
                 AutofillMetadata.EXTRA_NAME,
-                AutofillMetadata(appId = appId, appIdTrusted = appIdTrusted, webDomains = webDomains, isWebOrigin = isWebOrigin, dalVerified = dalVerified, saveInfo = saveInfo).toJsonString()
+                AutofillMetadata(appId = appId, appIdTrusted = appIdTrusted, webDomains = webDomains, isWebOrigin = isWebOrigin, dalVerified = dalVerified, appIsBrowser = appIsBrowser, saveInfo = saveInfo).toJsonString()
         )
 
         // Make the intent explicit to allow mutability

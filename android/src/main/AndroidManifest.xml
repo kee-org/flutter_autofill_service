@@ -2,6 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.keevault.flutter_autofill_service">
 
+    <!--
+        Package visibility (API 30+) so AssistStructureParser can tell whether the app being filled
+        is a browser: it queries for apps that handle generic https links. Narrow signature only,
+        not QUERY_ALL_PACKAGES. Consumers can drop it with tools:node="remove"; browser detection
+        then relies on the built-in allowlist alone.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application>
         <activity
             android:name=".DummyTestActivity"

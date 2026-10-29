@@ -47,6 +47,10 @@ Your app chooses which method to call after the user picks an entry:
 
 The example app's `AutofillSelectionScreen` shows all of these.
 
+### Detecting browsers (`appIsBrowser`)
+
+`AutofillMetadata.appIsBrowser` is `true` when `appId` is a web browser. A browser's package id is not an app identity, so do not match or learn entries by `appId` in that case. It does not change `dalVerified`. Detection uses a built-in browser allowlist plus a query for apps that handle generic `https` links. The latter needs the `<queries>` entry the plugin adds to your merged manifest (Android 11+, not `QUERY_ALL_PACKAGES`). To opt out, remove it with `tools:node="remove"` in your app manifest; only the allowlist is then used.
+
 ### Logging
 
 This plugin logs via tinylog/slf4j and includes a custom tinylog `LoggingProvider` (`DynamicLevelLoggingProvider`) which lets the debug log level be toggled at runtime from your Flutter code (via the `enableDebug` preference) without restarting the app. To wire this up, copy the example app's resource files into your own app:
