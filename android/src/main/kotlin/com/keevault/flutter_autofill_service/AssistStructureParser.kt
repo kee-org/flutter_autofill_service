@@ -2,8 +2,11 @@ package com.keevault.flutter_autofill_service
 
 import android.app.assist.AssistStructure
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.content.pm.verify.domain.DomainVerificationUserState
+import android.net.Uri
 import android.os.*
 import android.view.*
 import android.view.autofill.AutofillId
@@ -28,6 +31,12 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
 
     var appId: String? = null
     var appIdTrusted: Boolean = false
+
+    /**
+     * True if [appId] is a web browser, so it must not be treated as the identity of an app.
+     */
+    var appIsBrowser: Boolean = false
+        private set
 
     var isWebOrigin: Boolean = false
         private set
@@ -166,7 +175,34 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
             }
         }
 
+        appIsBrowser = appId?.let { isBrowser(it) } ?: false
         verifyDigitalAssetLinks()
+    }
+
+    private val knownBrowsers: List<String> get() = trustedCompatBrowsers + trustedNativeBrowsers
+
+    private fun isBrowser(packageName: String): Boolean {
+        if (packageName in knownBrowsers) return true
+        // Catches browsers missing from the allowlist. Apps that only handle their own hosts do
+        // not match a made-up host, so ordinary (including WebView) apps are not caught. Needs the
+        // matching <queries> entry in the manifest for API 30+; without it browsers are not
+        // visible and this returns false, leaving the allowlist as the only signal.
+        return try {
+            val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.invalid"))
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+            val handlers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.queryIntentActivities(
+                    probe, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.queryIntentActivities(probe, PackageManager.MATCH_ALL)
+            }
+            handlers.any { it.activityInfo?.packageName == packageName }
+        } catch (e: Exception) {
+            logger.warn { "Browser detection query failed: ${e.message}" }
+            false
+        }
     }
 
     private fun verifyDigitalAssetLinks() {
@@ -181,8 +217,8 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
         // This short-circuits before the DAL check, otherwise common cases like Chrome
         // loading an arbitrary site would fail verification (browsers don't publish
         // assetlinks.json for every domain they render).
-        if ((componentPackage != null && componentPackage!! in trustedCompatBrowsers + trustedNativeBrowsers) ||
-            nodeIdPackages.any { it in trustedCompatBrowsers + trustedNativeBrowsers }) {
+        if ((componentPackage != null && componentPackage!! in knownBrowsers) ||
+            nodeIdPackages.any { it in knownBrowsers }) {
             dalVerified = true
             logger.debug { "DAL: trusted browser allowlist hit for packages component=$componentPackage nodeIds=$nodeIdPackages, dalVerified=true" }
             return

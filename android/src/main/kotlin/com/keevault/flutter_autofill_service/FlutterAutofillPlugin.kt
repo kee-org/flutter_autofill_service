@@ -434,7 +434,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.dalVerified
+                structure.dalVerified,
+                structure.appIsBrowser
             )
             val intentSender: IntentSender
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -597,7 +598,8 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.dalVerified
+                structure.dalVerified,
+                structure.appIsBrowser
             )
             val intentSender: IntentSender
             @SuppressLint("UnspecifiedImmutableFlag")

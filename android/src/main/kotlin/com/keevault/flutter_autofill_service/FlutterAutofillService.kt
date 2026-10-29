@@ -211,7 +211,8 @@ class FlutterAutofillService : AutofillService() {
                 mode,
                 null,
                 parser.isWebOrigin,
-                parser.dalVerified
+                parser.dalVerified,
+                parser.appIsBrowser
             )
             //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
             val pendingIntent: PendingIntent
@@ -380,6 +381,7 @@ class FlutterAutofillService : AutofillService() {
         var webDomains: Set<WebDomain>? = null
         var isWebOrigin: Boolean = false
         var dalVerified: Boolean = false
+        var appIsBrowser: Boolean = false
 
         request.fillContexts.reversed().forEach { context ->
             val parser = AssistStructureParser(context.structure, this)
@@ -405,6 +407,7 @@ class FlutterAutofillService : AutofillService() {
             if (appId == null && parser.appId != null) {
                 appId = parser.appId
                 appIdTrusted = parser.appIdTrusted
+                appIsBrowser = parser.appIsBrowser
             }
             if (webDomains == null && parser.webDomains.isNotEmpty()) {
                 webDomains = parser.webDomains
@@ -424,7 +427,8 @@ class FlutterAutofillService : AutofillService() {
             "/autofill_save",
             SaveInfoMetadata(username, password, isCompatMode),
             isWebOrigin,
-            dalVerified
+            dalVerified,
+            appIsBrowser
         )
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(startIntent)
@@ -441,6 +445,7 @@ data class AutofillMetadata(
         val webDomains: Set<WebDomain>,
         val isWebOrigin: Boolean = false,
         val dalVerified: Boolean = false,
+        val appIsBrowser: Boolean = false,
         val saveInfo: SaveInfoMetadata?
 ) {
     companion object {

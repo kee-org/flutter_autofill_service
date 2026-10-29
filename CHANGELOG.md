@@ -3,6 +3,7 @@
 * New opt-in "select-in-app" autofill flow: the unlock suggestion authenticates a single dataset, so after the user picks an entry once in the app's own UI it is filled directly with no further taps. Enable with the new `AutofillPreferences.useInAppSelection` preference (default `false`, which keeps the existing behaviour). Reply with `resultWithDataset`.
 * New `AutofillPreferences.useEphemeralDataset` preference (default `true`), only used with `useInAppSelection` on Android 12+: `true` fills once and keeps the unlock suggestion available; `false` lets Android keep the chosen entry for the session.
 * If the select-in-app flow cannot build its unlock suggestion (no field ids), the request now falls back completely to the existing flow instead of leaving the new-flow flag set, which made the reply to response-level authentication unusable
+* New `AutofillMetadata.appIsBrowser`: true when `appId` is a browser (built-in allowlist, or an app that handles generic https links), so consumers do not treat a browser's package id as an app identity. Adds a narrow `<queries>` entry (`VIEW` + `BROWSABLE` + `https`) to the plugin manifest for package visibility on Android 11+; remove it with `tools:node="remove"` to rely on the allowlist only.
 * Use distinct request codes for the unlock and "Use a different entry" PendingIntents
 * Fix username and password field IDs being swapped when building save info in the replacement fill response
 
