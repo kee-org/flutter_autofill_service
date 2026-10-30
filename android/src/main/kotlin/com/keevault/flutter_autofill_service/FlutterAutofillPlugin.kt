@@ -186,7 +186,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     private fun hideSensitiveMetadata(metadata: AutofillMetadata?): String {
         if (metadata == null) return ""
-        return "appId: ${metadata.appId} (trusted:${metadata.appIdTrusted}), domains: ${metadata.webDomains}, compatMode: ${metadata.saveInfo?.isCompatMode}"
+        return "appId: ${metadata.appId} (source:${metadata.appIdSource}), domains: ${metadata.webDomains}, compatMode: ${metadata.saveInfo?.isCompatMode}"
     }
 
     private fun getDrawable(name: String): Int {
@@ -256,7 +256,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             return
         }
         val structure = AssistStructureParser(structureParcel, context)
-        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
+        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, webDomains=${structure.webDomains}" }
         var totalToReturn = 0
         val isManualRequest = clientState.getBoolean("isManualRequest", false)
         val focusedId = structure.focusedAutofillId
@@ -323,7 +323,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                     else -> if (pw.username.isNotBlank()) pw.username else ""
                                 }
                                 if (valueForFocused.isNotBlank()) {
-                                    val focusedField = structure.fieldIds[focusedType]?.find { it.autofillId == focusedId }
+                                    val focusedField = structure.fillableFields().firstOrNull { it.first == focusedType && it.second.autofillId == focusedId }?.second
                                     if (focusedField != null) {
                                         filledAutofillIds.add(focusedId)
                                         configureDataset(
@@ -341,9 +341,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 }
                             }
                         }
-                        structure.fieldIds.flatMap { mapEntry ->
-                            mapEntry.value.map { mapEntry.key to it }
-                        }.sortedByDescending { it.second.heuristic.weight }
+                        structure.fillableFields()
                             .forEach allIds@{ (type, field) ->
                                 val isNewAutofillId = filledAutofillIds.add(field.autofillId)
                                 logger.debug {
@@ -428,13 +426,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             val startIntent = getStartIntent(
                 activityName,
                 structure.appId,
-                structure.appIdTrusted,
+                structure.appIdSource,
                 structure.webDomains,
                 context,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.dalVerified,
                 structure.appIsBrowser
             )
             val intentSender: IntentSender
@@ -510,7 +507,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                     else -> if (pw.username.isNotBlank()) pw.username else ""
                                 }
                                 if (valueForFocused.isNotBlank()) {
-                                    val focusedField = structure.fieldIds[focusedType]?.find { it.autofillId == focusedId }
+                                    val focusedField = structure.fillableFields().firstOrNull { it.first == focusedType && it.second.autofillId == focusedId }?.second
                                     if (focusedField != null) {
                                         filledAutofillIds.add(focusedId)
                                         configureDatasetPreS(
@@ -523,9 +520,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 }
                             }
                         }
-                        structure.fieldIds.flatMap { mapEntry ->
-                            mapEntry.value.map { mapEntry.key to it }
-                        }.sortedByDescending { it.second.heuristic.weight }
+                        structure.fillableFields()
                             .forEach allIds@{ (type, field) ->
                                 val isNewAutofillId = filledAutofillIds.add(field.autofillId)
                                 logger.debug {
@@ -592,13 +587,12 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             val startIntent = getStartIntent(
                 activityName,
                 structure.appId,
-                structure.appIdTrusted,
+                structure.appIdSource,
                 structure.webDomains,
                 context,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.dalVerified,
                 structure.appIsBrowser
             )
             val intentSender: IntentSender
@@ -676,7 +670,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             logger.warn { "resultWithDataset called outside of the in-app selection flow and outside of a \"Use a different entry\" launch." }
         }
         val structure = AssistStructureParser(structureParcel, context)
-        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
+        logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, webDomains=${structure.webDomains}" }
         logger.debug { "structure: $structure" }
         logger.info { "packageName: ${context.packageName}" }
 
@@ -706,9 +700,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             builder.apply {
                 setId(pwDataset.id ?: "ds-0")
                 val filledAutofillIds = mutableSetOf<AutofillId>()
-                structure.fieldIds.flatMap { entry ->
-                    entry.value.map { entry.key to it }
-                }.sortedByDescending { it.second.heuristic.weight }.forEach allIds@{ (type, field) ->
+                structure.fillableFields().forEach allIds@{ (type, field) ->
                     val isNewAutofillId = filledAutofillIds.add(field.autofillId)
                     logger.debug {
                         "Adding data set at weight ${field.heuristic.weight} for ${
@@ -787,9 +779,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             builder.apply {
                 setId(pwDataset.id ?: "ds-0")
                 val filledAutofillIds = mutableSetOf<AutofillId>()
-                structure.fieldIds.flatMap { entry ->
-                    entry.value.map { entry.key to it }
-                }.sortedByDescending { it.second.heuristic.weight }
+                structure.fillableFields()
                     .forEach allIds@{ (type, field) ->
                         val isNewAutofillId = filledAutofillIds.add(field.autofillId)
                         logger.debug {

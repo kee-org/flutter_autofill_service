@@ -10,16 +10,55 @@ import android.net.Uri
 import android.os.*
 import android.view.*
 import android.view.autofill.AutofillId
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import io.github.oshai.kotlinlogging.KotlinLogging
 import android.app.assist.AssistStructure.ViewNode
 
 private val logger = KotlinLogging.logger {}
 
+/**
+ * A web domain claimed by the app being filled. The claim itself is untrusted: only [dalVerified]
+ * says whether the app that presented it is known to be entitled to.
+ */
 @JsonClass(generateAdapter = true)
-data class WebDomain(val scheme: String?, val domain: String)
+data class WebDomain(
+        val scheme: String?,
+        val domain: String,
+        /**
+         * True if the app presenting the request is a known browser, or Android reports it as
+         * verified (or user-selected) to handle links for exactly this domain.
+         */
+        val dalVerified: Boolean = false,
+        /**
+         * True for the one domain that the request is about (the domain of the focused field),
+         * so consumers don't have to guess which of several claimed domains is the primary one.
+         * At most one domain is focused and none are if the primary domain cannot be determined.
+         */
+        val focused: Boolean = false
+)
 
-class AssistStructureParser(structure: AssistStructure, private val context: Context) {
+/**
+ * Where [AssistStructureParser.appId] came from. Only [COMPONENT] is supplied by the system; the
+ * app being filled controls the others.
+ */
+@JsonClass(generateAdapter = false)
+enum class AppIdSource {
+    /** The activity component in the AssistStructure, supplied by Android. */
+    @Json(name = "component") COMPONENT,
+    /** The idPackage of a view node, chosen by the app being filled. */
+    @Json(name = "viewNode") VIEW_NODE,
+    /** The window title, chosen by the app being filled. */
+    @Json(name = "windowTitle") WINDOW_TITLE,
+    /** No app could be identified. */
+    @Json(name = "none") NONE,
+}
+
+class AssistStructureParser(
+        structure: AssistStructure,
+        private val context: Context,
+        private val sdkInt: Int = Build.VERSION.SDK_INT
+) {
 
     val autoFillIds = mutableListOf<AutofillId>()
     val allNodes = mutableListOf<ViewNode>()
@@ -27,10 +66,31 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
     var componentPackage: String? = null
     val nodeIdPackages = HashSet<String>()
     val titlePackages = HashSet<String>()
-    var webDomains = HashSet<WebDomain>()
+
+    /** Domains claimed by view nodes, keyed by lower case host. Unverified and not focused. */
+    private val claimedDomains = LinkedHashMap<String, WebDomain>()
+
+    /**
+     * Every claimed domain with its individual verification status. Empty on Android 11 and
+     * below unless the app is a known browser (see [isWebOrigin]).
+     */
+    var webDomains: Set<WebDomain> = emptySet()
+        private set
+
+    /**
+     * Lower case host of the domain the request is about, or null if there is none. Decided by,
+     * in order: the focused credential field, the only claimed domain, the password field.
+     * Fields are only filled if they belong to this domain, or to no domain when this is null.
+     */
+    var primaryHost: String? = null
+        private set
 
     var appId: String? = null
-    var appIdTrusted: Boolean = false
+    var appIdSource: AppIdSource = AppIdSource.NONE
+        private set
+
+    /** True only if [appId] came from the system-supplied activity component. */
+    val appIdTrusted: Boolean get() = appIdSource == AppIdSource.COMPONENT
 
     /**
      * True if [appId] is a web browser, so it must not be treated as the identity of an app.
@@ -39,8 +99,6 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
         private set
 
     var isWebOrigin: Boolean = false
-        private set
-    var dalVerified: Boolean = false
         private set
 
     val fieldIds =
@@ -145,6 +203,23 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
         normaliseParsedStructure()
     }
 
+    /**
+     * The fields it is safe to write credentials into, highest weight first. Fields that belong to
+     * a different web domain from [primaryHost] are left out, so credentials chosen for one
+     * origin are not delivered to fields of another origin (for example native fields in the
+     * host app, or other WebViews and iframes). Fields the user cannot see are also left out.
+     */
+    fun fillableFields(): List<Pair<AutofillInputType, MatchedField>> =
+        fieldIds.flatMap { entry -> entry.value.map { entry.key to it } }
+            .filter { (type, field) ->
+                val fillable = field.isVisible && field.webHost == primaryHost
+                if (!fillable) {
+                    logger.debug { "Not filling $type field ${field.autofillId}: visible=${field.isVisible}, host=${field.webHost}, primaryHost=$primaryHost" }
+                }
+                fillable
+            }
+            .sortedByDescending { it.second.heuristic.weight }
+
     private fun normaliseParsedStructure() {
         componentPackage?.let {
             if (excludedPackageIds.contains(it)) {
@@ -159,23 +234,26 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
         when {
             componentPackage != null -> {
                 appId = componentPackage
-                appIdTrusted = true
+                appIdSource = AppIdSource.COMPONENT
             }
             nodeIdPackages.isNotEmpty() -> {
+                // idPackage is set by the app being filled (ViewStructure.setId) so it is only a
+                // best guess, like the window title. With several values the pick is arbitrary.
                 appId = nodeIdPackages.firstOrNull()
-                appIdTrusted = true
+                appIdSource = AppIdSource.VIEW_NODE
             }
             titlePackages.isNotEmpty() -> {
                 appId = titlePackages.firstOrNull()
-                appIdTrusted = false
+                appIdSource = AppIdSource.WINDOW_TITLE
             }
             else -> {
                 appId = null
-                appIdTrusted = false
+                appIdSource = AppIdSource.NONE
             }
         }
 
         appIsBrowser = appId?.let { isBrowser(it) } ?: false
+        primaryHost = determinePrimaryHost()
         verifyDigitalAssetLinks()
     }
 
@@ -205,57 +283,86 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
         }
     }
 
+    private fun determinePrimaryHost(): String? {
+        val focusedFields = focusedAutofillId?.let { id ->
+            fieldIds.values.flatten().filter { it.autofillId == id }
+        }.orEmpty()
+        if (focusedFields.isNotEmpty()) {
+            return focusedFields.first().webHost
+        }
+        if (claimedDomains.size == 1) {
+            return claimedDomains.keys.first()
+        }
+        return (fieldIds[AutofillInputType.Password].orEmpty() + fieldIds[AutofillInputType.NewPassword].orEmpty())
+            .maxByOrNull { it.heuristic.weight }?.webHost
+    }
+
     private fun verifyDigitalAssetLinks() {
-        isWebOrigin = webDomains.isNotEmpty()
+        isWebOrigin = claimedDomains.isNotEmpty()
         if (!isWebOrigin) {
             // No web origin means there is nothing to verify against.
-            dalVerified = true
             return
         }
-        // Known trusted browsers render web content legitimately and are not claiming
-        // to own the domains they display, so they are always considered verified.
-        // This short-circuits before the DAL check, otherwise common cases like Chrome
-        // loading an arbitrary site would fail verification (browsers don't publish
-        // assetlinks.json for every domain they render).
-        if ((componentPackage != null && componentPackage!! in knownBrowsers) ||
-            nodeIdPackages.any { it in knownBrowsers }) {
-            dalVerified = true
-            logger.debug { "DAL: trusted browser allowlist hit for packages component=$componentPackage nodeIds=$nodeIdPackages, dalVerified=true" }
-            return
-        }
-        // A non-browser app presenting a web origin is suspicious: verify that it
-        // actually owns the domain via Digital Asset Links. This is the AutoFail
-        // threat model — an app masquerading as a site the user has credentials for.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = context.getSystemService(Context.DOMAIN_VERIFICATION_SERVICE) as DomainVerificationManager
-            for (pkg in listOfNotNull(componentPackage) + nodeIdPackages) {
+        // Only componentPackage may be used below. It comes from AssistStructure.activityComponent,
+        // which the system fills in. Every other package string in the structure (nodeIdPackages,
+        // titlePackages) is chosen by the app being filled, e.g. via ViewStructure.setId(), so
+        // using one of them here would let a malicious app claim to be a browser or another app.
+        val trustedPackage = componentPackage
+
+        // Each claimed domain is verified on its own. A single verified domain says nothing
+        // about the others because the app being filled can claim any number of them.
+        val verifiedHosts = mutableSetOf<String>()
+
+        if (trustedPackage != null && trustedPackage in knownBrowsers) {
+            // Known trusted browsers render web content legitimately and are not claiming
+            // to own the domains they display, so they are always considered verified.
+            // This short-circuits before the DAL check, otherwise common cases like Chrome
+            // loading an arbitrary site would fail verification (browsers don't publish
+            // assetlinks.json for every domain they render).
+            verifiedHosts.addAll(claimedDomains.keys)
+            logger.debug { "DAL: trusted browser allowlist hit for component=$trustedPackage, all domains verified" }
+        } else if (sdkInt >= Build.VERSION_CODES.S) {
+            // A non-browser app presenting a web origin is suspicious: verify that it
+            // actually owns the domain via Digital Asset Links. This is the AutoFail
+            // threat model — an app masquerading as a site the user has credentials for.
+            if (trustedPackage == null) {
+                // Without a system-provided component there is no package we can trust to
+                // have been the one that presented these domains, so fail closed.
+                logger.warn { "DAL verification FAILED for web origins ${claimedDomains.keys}: no system-provided component package" }
+            } else {
                 try {
-                    val userState = manager.getDomainVerificationUserState(pkg) ?: continue
-                    val hostMap = userState.getHostToStateMap() ?: continue
-                    for (domain in webDomains) {
-                        val state = hostMap[domain.domain]
-                        if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED ||
-                                state == DomainVerificationUserState.DOMAIN_STATE_SELECTED) {
-                            dalVerified = true
-                            logger.debug { "DAL verified: $pkg is verified/selected for domain ${domain.domain} (state=$state)" }
+                    val manager = context.getSystemService(Context.DOMAIN_VERIFICATION_SERVICE) as DomainVerificationManager
+                    val hostMap = manager.getDomainVerificationUserState(trustedPackage)?.getHostToStateMap()
+                    if (hostMap != null) {
+                        for ((host, claim) in claimedDomains) {
+                            val state = hostMap[claim.domain] ?: hostMap[host]
+                            if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED ||
+                                    state == DomainVerificationUserState.DOMAIN_STATE_SELECTED) {
+                                verifiedHosts.add(host)
+                                logger.debug { "DAL verified: $trustedPackage is verified/selected for domain ${claim.domain} (state=$state)" }
+                            }
                         }
                     }
                 } catch (e: Exception) {
-                    logger.warn { "DAL verification check failed for package $pkg: ${e.message}" }
+                    logger.warn { "DAL verification check failed for package $trustedPackage: ${e.message}" }
                 }
-            }
-            if (!dalVerified) {
-                logger.warn { "DAL verification FAILED for web origins ${webDomains.map { it.domain }} from packages component=$componentPackage nodeIds=$nodeIdPackages" }
+                val unverified = claimedDomains.keys - verifiedHosts
+                if (unverified.isNotEmpty()) {
+                    logger.warn { "DAL verification FAILED for web origins $unverified from component=$trustedPackage" }
+                }
             }
         } else {
             // API 29-30: no public DAL query API exists (DomainVerificationManager is API 31+,
             // and GET_DOMAIN_VERIFICATION / PackageInfo.domainVerificationInfo are @hide).
-            // Preserve prior behaviour: strip the web origins so unverified non-browser
+            // Preserve prior behaviour: report no web origins so unverified non-browser
             // apps cannot match saved credentials.
-            dalVerified = false
-            webDomains.clear()
-            logger.debug { "API < 31, no DAL query API available; stripped web origins for non-browser packages component=$componentPackage nodeIds=$nodeIdPackages" }
+            logger.debug { "API < 31, no DAL query API available; stripped web origins for non-browser component=$trustedPackage" }
+            return
         }
+
+        webDomains = claimedDomains.map { (host, claim) ->
+            claim.copy(dalVerified = host in verifiedHosts, focused = host == primaryHost)
+        }.toSet()
     }
 
     private fun traverseStructure(structure: AssistStructure) {
@@ -270,7 +377,7 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
             val titlePackage = extractPackageFromTitle(windowNode)
             logger.debug { "title package ID: $titlePackage" }
             titlePackage?.let { titlePackages.add(it) }
-            windowNode.rootViewNode?.let { traverseNode(it, "") }
+            windowNode.rootViewNode?.let { traverseNode(it, "", null, null, true) }
         }
     }
 
@@ -306,7 +413,12 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
     //         }
     // }
 
-    private fun traverseNode(viewNode: ViewNode, depth: String) {
+    /**
+     * @param inheritedDomain the web domain of the nearest ancestor that has one, which also
+     *        applies to this node unless it declares its own
+     * @param ancestorsVisible false if any ancestor is not visible, which hides this node too
+     */
+    private fun traverseNode(viewNode: ViewNode, depth: String, inheritedDomain: String?, inheritedScheme: String?, ancestorsVisible: Boolean) {
         allNodes.add(viewNode)
         val debug =
                 (listOf(
@@ -349,20 +461,25 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
             logger.trace { "Package ID found: $idPackage" }
             nodeIdPackages.add(idPackage)
         }
-        viewNode.webDomain?.let { webDomain ->
-            if (webDomain.isNotEmpty()) {
-                webDomains.add(
-                        WebDomain(
-                                viewNode.webScheme, webDomain
-                        )
-                )
+        val ownDomain = viewNode.webDomain?.takeIf { it.isNotEmpty() }
+        val webDomain = ownDomain ?: inheritedDomain
+        val webScheme = if (ownDomain != null) viewNode.webScheme else inheritedScheme
+        if (ownDomain != null) {
+            val host = ownDomain.lowercase()
+            val existing = claimedDomains[host]
+            if (existing == null || (existing.scheme == null && webScheme != null)) {
+                claimedDomains[host] = WebDomain(webScheme, ownDomain)
             }
         }
+        val visible = ancestorsVisible && viewNode.visibility == View.VISIBLE
+        // A field that is not displayed, or is too small to see, is where a hostile page or app
+        // would hide a field to collect credentials without the user noticing.
+        val fieldVisible = visible && viewNode.width > 1 && viewNode.height > 1
         viewNode.autofillId?.let { autofillId ->
             autoFillIds.add(autofillId)
             AutofillInputType.values().forEach { type ->
                 fieldIds.getOrPut(type) { mutableListOf() }.addAll(
-                        matchedFieldsFromHeuristics(type, viewNode, autofillId)
+                        matchedFieldsFromHeuristics(type, viewNode, autofillId, webDomain?.lowercase(), fieldVisible)
                 )
             }
         }
@@ -374,11 +491,11 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
                 }
 
         children.forEach { childNode: ViewNode ->
-            traverseNode(childNode, "    ")
+            traverseNode(childNode, "    ", webDomain, webScheme, visible)
         }
     }
 
-    private fun matchedFieldsFromHeuristics(type: AutofillInputType, viewNode: ViewNode, autofillId: AutofillId): List<MatchedField> {
+    private fun matchedFieldsFromHeuristics(type: AutofillInputType, viewNode: ViewNode, autofillId: AutofillId, webHost: String?, isVisible: Boolean): List<MatchedField> {
         val filtered = type.heuristics
 
                 // filtering here means we have a fieldId entry but with an empty list of MatchedFields
@@ -399,7 +516,7 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
 
         val mapped = filtered
                 .takeWhile { !it.block }
-                .map { MatchedField(it, autofillId) }
+                .map { MatchedField(it, autofillId, webHost, isVisible) }
         logger.trace { "Filtered ${type.heuristics.count()} heuristics into ${filtered.count()} and extracted ${mapped.count()} MatchedFields after considering blocking heuristics" }
         return mapped
     }
@@ -537,7 +654,7 @@ class AssistStructureParser(structure: AssistStructure, private val context: Con
     }
 
     override fun toString(): String {
-        return "AssistStructureParser(autoFillIds=$autoFillIds, appId=$appId, appIdTrusted=$appIdTrusted, componentPackage=$componentPackage, nodeIdPackages=$nodeIdPackages, titlePackages=$titlePackages, webDomains=$webDomains, isWebOrigin=$isWebOrigin, dalVerified=$dalVerified, fieldIds=$fieldIds)"
+        return "AssistStructureParser(autoFillIds=$autoFillIds, appId=$appId, appIdSource=$appIdSource, componentPackage=$componentPackage, nodeIdPackages=$nodeIdPackages, titlePackages=$titlePackages, webDomains=$webDomains, isWebOrigin=$isWebOrigin, fieldIds=$fieldIds)"
     }
 
 

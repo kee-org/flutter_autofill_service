@@ -220,13 +220,28 @@ class AutofillService {
   }
 }
 
+/// Where [AutofillMetadata.appId] came from.
+enum AppIdSource {
+  /// The activity component reported by Android. The only source the app being
+  /// filled cannot choose.
+  component,
+
+  /// The package ID of a view node. Chosen by the app being filled.
+  viewNode,
+
+  /// The window title. Chosen by the app being filled.
+  windowTitle,
+
+  /// No app could be identified, so [AutofillMetadata.appId] is null.
+  none,
+}
+
 class AutofillMetadata {
   AutofillMetadata({
     this.appId,
-    this.appIdTrusted = false,
+    this.appIdSource = AppIdSource.none,
     required this.webDomains,
     this.isWebOrigin = false,
-    this.dalVerified = false,
     this.appIsBrowser = false,
     required this.saveInfo,
   });
@@ -234,14 +249,14 @@ class AutofillMetadata {
     final saveInfoJson = json['saveInfo'] as Map<dynamic, dynamic>?;
     return AutofillMetadata(
       appId: json['appId'] as String?,
-      appIdTrusted: json['appIdTrusted'] as bool? ?? false,
+      appIdSource: AppIdSource.values.asNameMap()[json['appIdSource']] ??
+          AppIdSource.none,
       webDomains: ((json['webDomains'] as Iterable?)
               ?.map((dynamic e) =>
                   AutofillWebDomain.fromJson(e as Map<dynamic, dynamic>))
               .toSet()) ??
           {},
       isWebOrigin: json['isWebOrigin'] as bool? ?? false,
-      dalVerified: json['dalVerified'] as bool? ?? false,
       appIsBrowser: json['appIsBrowser'] as bool? ?? false,
       saveInfo:
           saveInfoJson != null ? SaveInfoMetadata.fromJson(saveInfoJson) : null,
@@ -249,16 +264,40 @@ class AutofillMetadata {
   }
 
   final String? appId;
-  final bool appIdTrusted;
+
+  /// Where [appId] came from.
+  final AppIdSource appIdSource;
+
+  /// True only if [appId] came from the activity component supplied by Android
+  /// ([AppIdSource.component]). Any other source can be chosen by the app being
+  /// filled, so do not treat [appId] as that app's identity.
+  bool get appIdTrusted => appIdSource == AppIdSource.component;
+
+  /// Every web domain claimed by the app being filled, each with its own
+  /// verification status. Any app can claim any domain, so only match entries
+  /// against a domain whose [AutofillWebDomain.dalVerified] is true.
   final Set<AutofillWebDomain> webDomains;
+
+  /// The domain this request is about (the domain of the focused field), or null
+  /// if there is none. Use this one when there are several [webDomains].
+  AutofillWebDomain? get focusedWebDomain {
+    for (final domain in webDomains) {
+      if (domain.focused) {
+        return domain;
+      }
+    }
+    return null;
+  }
+
+  /// True if the request claims at least one web origin. This can be true while
+  /// [webDomains] is empty, on Android 11 and below for apps that are not browsers.
   final bool isWebOrigin;
-  final bool dalVerified;
 
   /// True if [appId] is a web browser (built-in allowlist, or an app that handles
   /// generic https links). A browser's package id is not an app identity, so do not
   /// match or learn entries by [appId] when this is true, unless you want to maintain
   /// an override list of known non-browser apps that handle https links (e.g. RSS
-  /// readers, "Read it later apps", etc.). Does not affect [dalVerified].
+  /// readers, "Read it later apps", etc.). Does not affect [AutofillWebDomain.dalVerified].
   final bool appIsBrowser;
   final SaveInfoMetadata? saveInfo;
 
@@ -267,10 +306,9 @@ class AutofillMetadata {
 
   Map<String, Object?> toJson() => {
         if (appId != null) 'appId': appId!,
-        'appIdTrusted': appIdTrusted,
+        'appIdSource': appIdSource.name,
         'webDomains': webDomains.map((e) => e.toJson()),
         'isWebOrigin': isWebOrigin,
-        'dalVerified': dalVerified,
         'appIsBrowser': appIsBrowser,
         'saveInfo': saveInfo
       };
@@ -301,16 +339,33 @@ class SaveInfoMetadata {
 }
 
 class AutofillWebDomain {
-  AutofillWebDomain({this.scheme, required this.domain});
+  AutofillWebDomain({
+    this.scheme,
+    required this.domain,
+    this.dalVerified = false,
+    this.focused = false,
+  });
 
   factory AutofillWebDomain.fromJson(Map<dynamic, dynamic> json) =>
       AutofillWebDomain(
         scheme: json['scheme'] as String?,
         domain: json['domain'] as String,
+        dalVerified: json['dalVerified'] as bool? ?? false,
+        focused: json['focused'] as bool? ?? false,
       );
 
   final String? scheme;
   final String domain;
+
+  /// True only if the app presenting the request is a known browser, or Android
+  /// reports it as verified (or user-selected) to handle links for exactly this
+  /// domain (Digital Asset Links, Android 12+). A verified domain says nothing
+  /// about the other domains in the same request.
+  final bool dalVerified;
+
+  /// True for the one domain the request is about: the domain of the focused
+  /// field. At most one domain is focused, and none is if it cannot be determined.
+  final bool focused;
 
   @override
   String toString() => toJson().toString();
@@ -318,5 +373,7 @@ class AutofillWebDomain {
   Map<String, Object> toJson() => {
         if (scheme != null) 'scheme': scheme!,
         'domain': domain,
+        'dalVerified': dalVerified,
+        'focused': focused,
       };
 }
