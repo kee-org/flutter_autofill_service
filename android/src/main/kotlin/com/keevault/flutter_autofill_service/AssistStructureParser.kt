@@ -27,9 +27,16 @@ data class WebDomain(
         val domain: String,
         /**
          * True if the app presenting the request is a known browser, or Android reports it as
-         * verified (or user-selected) to handle links for exactly this domain.
+         * verified to handle links for exactly this domain. A domain the user merely allowed the
+         * app to open links for ([userSelected]) is not verified.
          */
         val dalVerified: Boolean = false,
+        /**
+         * True if the app declares this domain but Android has not verified it and the user chose
+         * to let the app open its links ("Open supported links"). That is the user's choice about
+         * link handling, not proof that the app owns the domain, so it never implies [dalVerified].
+         */
+        val userSelected: Boolean = false,
         /**
          * True for the one domain that the request is about (the domain of the focused field),
          * so consumers don't have to guess which of several claimed domains is the primary one.
@@ -312,6 +319,7 @@ class AssistStructureParser(
         // Each claimed domain is verified on its own. A single verified domain says nothing
         // about the others because the app being filled can claim any number of them.
         val verifiedHosts = mutableSetOf<String>()
+        val userSelectedHosts = mutableSetOf<String>()
 
         if (trustedPackage != null && trustedPackage in knownBrowsers) {
             // Known trusted browsers render web content legitimately and are not claiming
@@ -336,10 +344,14 @@ class AssistStructureParser(
                     if (hostMap != null) {
                         for ((host, claim) in claimedDomains) {
                             val state = hostMap[claim.domain] ?: hostMap[host]
-                            if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED ||
-                                    state == DomainVerificationUserState.DOMAIN_STATE_SELECTED) {
+                            if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED) {
                                 verifiedHosts.add(host)
-                                logger.debug { "DAL verified: $trustedPackage is verified/selected for domain ${claim.domain} (state=$state)" }
+                                logger.debug { "DAL verified: $trustedPackage is verified for domain ${claim.domain}" }
+                            } else if (state == DomainVerificationUserState.DOMAIN_STATE_SELECTED) {
+                                // The app declares this host but has not proved it owns it; the user only
+                                // allowed it to open links. Report it separately and never as verified.
+                                userSelectedHosts.add(host)
+                                logger.debug { "DAL not verified: $trustedPackage is only user-selected for domain ${claim.domain}" }
                             }
                         }
                     }
@@ -361,7 +373,11 @@ class AssistStructureParser(
         }
 
         webDomains = claimedDomains.map { (host, claim) ->
-            claim.copy(dalVerified = host in verifiedHosts, focused = host == primaryHost)
+            claim.copy(
+                dalVerified = host in verifiedHosts,
+                userSelected = host in userSelectedHosts,
+                focused = host == primaryHost
+            )
         }.toSet()
     }
 

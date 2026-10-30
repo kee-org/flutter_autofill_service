@@ -10,7 +10,7 @@ private val logger = KotlinLogging.logger {}
 
 object SaveHelper {
     fun createSaveInfo(clientState: Bundle, autoFillIdUsernameGuessed: AutofillId?, autoFillIdPasswordGuessed: AutofillId?, autoFillIdUsernameMatched: AutofillId?, autoFillIdPasswordMatched: AutofillId?): SaveInfo? {
-        if (autoFillIdPasswordGuessed == null && autoFillIdUsernameGuessed == null && autoFillIdUsernameMatched == null) {
+        if (autoFillIdPasswordGuessed == null && autoFillIdUsernameGuessed == null && autoFillIdUsernameMatched == null && autoFillIdPasswordMatched == null) {
             return null
         }
 
@@ -24,8 +24,15 @@ object SaveHelper {
             logger.warn { "AutofillId of matched entry password differs from our guessed ID" }
         }
 
-        val usernameId = clientState.getParcelable("usernameId") ?: autoFillIdUsernameMatched ?: autoFillIdUsernameGuessed
         val passwordId = autoFillIdPasswordMatched ?: autoFillIdPasswordGuessed
+        var usernameId = clientState.getParcelable<AutofillId>("usernameId") ?: autoFillIdUsernameMatched ?: autoFillIdUsernameGuessed
+        // Android could report one field's value as both the username and the password so we keep
+        // only the password and let the user supply the username when saving.
+        if (usernameId != null && usernameId == passwordId) {
+            logger.warn { "Username and password fields are the same field. Saving the password only." }
+            clientState.remove("usernameId")
+            usernameId = null
+        }
         val builder: SaveInfo.Builder
 
         if (usernameId != null && passwordId != null) {
@@ -51,17 +58,52 @@ object SaveHelper {
         return builder.build()
     }
 
+    /**
+     * Picks the most likely username and password fields of a sign-in or registration form. The
+     * two ids are never the same: the password is chosen first and cannot also be the username.
+     * Only ids and heuristic details are logged, never field values.
+     */
     fun guessAutofillIdsForSave(parser: AssistStructureParser): Pair<AutofillId?, AutofillId?> {
-        // If both new password and existing password fields are found in the same app view, we 
+        // If both new password and existing password fields are found in the same app view, we
         // guess that the new password field is more likely to be the best one to use but real
         // world examples will be needed before we know if this is reasonable. Hopefully
         // no apps include both of these in a single view anyway!
-        val usernameId = parser.fieldIds[AutofillInputType.NewUserName]?.maxByOrNull { it.heuristic.weight }?.autofillId
-            ?: parser.fieldIds[AutofillInputType.UserName]?.maxByOrNull { it.heuristic.weight }?.autofillId
-            ?: parser.fieldIds[AutofillInputType.Email]?.maxByOrNull { it.heuristic.weight }?.autofillId
-        val passwordId = parser.fieldIds[AutofillInputType.NewPassword]?.maxByOrNull { it.heuristic.weight }?.autofillId
-            ?: parser.fieldIds[AutofillInputType.Password]?.maxByOrNull { it.heuristic.weight }?.autofillId
+        val passwordPick = bestField(parser, listOf(AutofillInputType.NewPassword, AutofillInputType.Password), null)
+        val usernamePick = bestField(
+            parser,
+            listOf(AutofillInputType.NewUserName, AutofillInputType.UserName, AutofillInputType.Email),
+            passwordPick?.second?.autofillId
+        )
+        val usernameId = usernamePick?.second?.autofillId
+        val passwordId = passwordPick?.second?.autofillId
+        logger.debug {
+            "Save ids: usernameId=$usernameId (${describe(usernamePick)}), passwordId=$passwordId (${describe(passwordPick)})"
+        }
+        if (usernameId != null && usernameId == passwordId) {
+            logger.warn { "Chose the same field for username and password: $usernameId" }
+        }
         return Pair(usernameId, passwordId)
+    }
 
+    private fun describe(pick: Pair<AutofillInputType, MatchedField>?): String =
+        pick?.let { (type, field) -> "type=$type, heuristic='${field.heuristic.message}', weight=${field.heuristic.weight}" } ?: "none"
+
+    /**
+     * The highest weighted field of the first of [types] that has any candidates, ignoring [excluding].
+     * When weights tie, visible fields of the primary web host win over the others, which still count as
+     * a fallback (e.g. a hidden username field on the password step of a multi-step sign in).
+     */
+    private fun bestField(
+        parser: AssistStructureParser,
+        types: List<AutofillInputType>,
+        excluding: AutofillId?
+    ): Pair<AutofillInputType, MatchedField>? {
+        for (type in types) {
+            val best = parser.fieldIds[type].orEmpty()
+                .filter { it.autofillId != excluding }
+                .maxWithOrNull(compareBy<MatchedField>({ it.heuristic.weight }, { if (it.isVisible && it.webHost == parser.primaryHost) 1 else 0 }))
+            if (best != null) return type to best
+        }
+        return null
     }
 }

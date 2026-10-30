@@ -31,6 +31,7 @@ class AssistStructureParserDalTest {
         const val BANK = "bank.example"
         const val EVIL = "evil.example"
         const val VERIFIED = DomainVerificationUserState.DOMAIN_STATE_VERIFIED
+        const val SELECTED = DomainVerificationUserState.DOMAIN_STATE_SELECTED
     }
 
     /** Describes one view node of a synthetic structure. A node with [field] set is a credential field. */
@@ -197,6 +198,45 @@ class AssistStructureParserDalTest {
         val parser = f.bankClaims("com.evil", listOf("com.evil"))
 
         assertFalse(parser.domain(BANK).dalVerified)
+    }
+
+    @Test
+    fun userSelectedDomainIsReportedSeparatelyAndNotVerified() {
+        val f = Fixture()
+        f.domainStates("com.evil", mapOf(BANK to SELECTED))
+        val parser = f.bankClaims("com.evil", listOf("com.evil"))
+
+        assertFalse(parser.domain(BANK).dalVerified)
+        assertTrue(parser.domain(BANK).userSelected)
+    }
+
+    @Test
+    fun verifiedDomainIsNotReportedAsUserSelected() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf(BANK to VERIFIED))
+        val parser = f.bankClaims("com.bank.app", listOf("com.bank.app"))
+
+        assertTrue(parser.domain(BANK).dalVerified)
+        assertFalse(parser.domain(BANK).userSelected)
+    }
+
+    @Test
+    fun userSelectedStateDoesNotLeakToOtherDomains() {
+        val f = Fixture()
+        f.domainStates("com.evil", mapOf(EVIL to SELECTED))
+        val parser = f.parser("com.evil", Node(children = listOf(Node(webDomain = EVIL), Node(webDomain = BANK))))
+
+        assertTrue(parser.domain(EVIL).userSelected)
+        assertFalse(parser.domain(BANK).userSelected)
+        assertFalse(parser.domain(BANK).dalVerified)
+    }
+
+    @Test
+    fun browserComponentIsNotReportedAsUserSelected() {
+        val f = Fixture()
+        val parser = f.bankClaims("com.android.chrome", listOf("com.android.chrome"))
+
+        assertFalse(parser.domain(BANK).userSelected)
     }
 
     // --- H-2: every claimed domain is verified on its own ---

@@ -4,6 +4,17 @@ import android.content.Context
 import android.content.Intent
 
 object IntentHelpers {
+    /**
+     * A description of [intent] that is safe to log: the action, component and the names of its
+     * extras. Never the values, which for autofill intents include the saved username and
+     * password (see [SaveInfoMetadata]) and the AutofillIds of the form being filled.
+     */
+    fun describeForLog(intent: Intent?): String {
+        if (intent == null) return "null"
+        val extraKeys = intent.extras?.keySet()?.sorted() ?: emptyList()
+        return "Intent(action=${intent.action}, component=${intent.component?.flattenToShortString()}, extraKeys=$extraKeys)"
+    }
+
     // PendingIntent identity ignores extras, so each distinct launch needs its own request code.
     const val REQUEST_CODE_UNLOCK = 1230 // service: initial unlock
     const val REQUEST_CODE_SELECT_ANOTHER = 1231 // plugin: "Use a different entry"
