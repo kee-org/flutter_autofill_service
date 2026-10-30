@@ -30,6 +30,23 @@ If your meta-data references a drawable that you do not already reference from e
 
 If you'd like to see this demonstrated in a real world example app, take a look at the Kee Vault app - https://github.com/kee-org/keevault2/
 
+### Selecting an entry in your app (optional)
+
+By default (legacy flow) your app answers an unlock with `resultWithDatasets(list)` and the user picks an entry from Android's autofill UI. Two preferences on `AutofillPreferences` enable an alternative flow where the user picks once, in your own UI:
+
+| Preference | Default | Effect |
+|---|---|---|
+| `useInAppSelection` | `false` | `true` shows a single "unlock" suggestion that opens your app with `fillRequestedInteractive == true`, so you can show an entry picker. The chosen entry is filled immediately, with no further taps. |
+| `useEphemeralDataset` | `true` | Only used when `useInAppSelection` is `true`, and only on Android 12 (API 31)+. `true` = one-shot fill: Android keeps offering the "unlock" suggestion so the user can pick a different entry. `false` = Android keeps the chosen entry for the rest of the autofill session and offers it again without unlocking. |
+
+Your app chooses which method to call after the user picks an entry:
+
+* `useInAppSelection == false`: legacy calls (`resultWithDatasets(list)`, or `resultWithDataset(...)` after "Use a different entry").
+* `useInAppSelection == true`: `resultWithDataset(...)` with the chosen entry. (`resultWithDatasets` is accepted for compatibility and uses its first entry.)
+* To decline, call `resultWithDatasets(null)`.
+
+The example app's `AutofillSelectionScreen` shows all of these.
+
 ### Logging
 
 This plugin logs via tinylog/slf4j and includes a custom tinylog `LoggingProvider` (`DynamicLevelLoggingProvider`) which lets the debug log level be toggled at runtime from your Flutter code (via the `enableDebug` preference) without restarting the app. To wire this up, copy the example app's resource files into your own app:

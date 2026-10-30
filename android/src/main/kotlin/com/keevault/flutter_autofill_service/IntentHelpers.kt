@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.Intent
 
 object IntentHelpers {
+    // PendingIntent identity ignores extras, so each distinct launch needs its own request code.
+    const val REQUEST_CODE_UNLOCK = 1230 // service: initial unlock
+    const val REQUEST_CODE_SELECT_ANOTHER = 1231 // plugin: "Use a different entry"
+
     fun getStartIntent(activityName: String, appId: String?, appIdTrusted: Boolean, webDomains: Set<WebDomain>, context: Context, autofillMode: String, saveInfo: SaveInfoMetadata?, isWebOrigin: Boolean = false, dalVerified: Boolean = false): Intent {
         val startIntent = Intent()
         startIntent.setClassName(context, activityName)

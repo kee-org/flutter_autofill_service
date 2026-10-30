@@ -5,6 +5,9 @@ import 'package:flutter_autofill_service/flutter_autofill_service.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 
+import 'autofill_selection_screen.dart';
+import 'test_login_form.dart';
+
 final _logger = Logger('main');
 
 void main() {
@@ -71,10 +74,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  String get _effectiveMode {
+    final prefs = _preferences;
+    if (prefs == null || !prefs.useInAppSelection) return 'Legacy';
+    return prefs.useEphemeralDataset
+        ? 'New / one-shot (ephemeral)'
+        : 'New / sticky (framework keeps chosen entry)';
+  }
+
   @override
   Widget build(BuildContext context) {
     _logger.info(
         'Building AppState. defaultRouteName:${WidgetsBinding.instance.window.defaultRouteName}');
+    if (widget.launchedByAutofillService && _fillRequestedInteractive == true) {
+      return MaterialApp(
+        home: AutofillSelectionScreen(metadata: _autofillMetadata),
+      );
+    }
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
@@ -93,7 +109,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
                 Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
                 Text(
-                    'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}\n\n'),
+                    'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}, in-app selection: ${_preferences?.useInAppSelection}, ephemeral: ${_preferences?.useEphemeralDataset}'),
+                Text('Effective mode: $_effectiveMode\n\n'),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -103,11 +120,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       child: const Text('Debug/Logging'),
                       onPressed: () async {
                         await AutofillService()
-                            .setPreferences(AutofillPreferences(
-                          enableDebug: !_preferences!.enableDebug,
-                          enableSaving: _preferences!.enableSaving,
-                          enableIMERequests: _preferences!.enableIMERequests,
-                        ));
+                            .setPreferences(_preferences!.copyWith(
+                            enableDebug: !_preferences!.enableDebug));
                         await _updateStatus();
                       },
                     ),
@@ -115,11 +129,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       child: const Text('Save'),
                       onPressed: () async {
                         await AutofillService()
-                            .setPreferences(AutofillPreferences(
-                          enableDebug: _preferences!.enableDebug,
-                          enableSaving: !_preferences!.enableSaving,
-                          enableIMERequests: _preferences!.enableIMERequests,
-                        ));
+                            .setPreferences(_preferences!.copyWith(
+                            enableSaving: !_preferences!.enableSaving));
                         await _updateStatus();
                       },
                     ),
@@ -127,15 +138,51 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       child: const Text('IME'),
                       onPressed: () async {
                         await AutofillService()
-                            .setPreferences(AutofillPreferences(
-                          enableDebug: _preferences!.enableDebug,
-                          enableSaving: _preferences!.enableSaving,
-                          enableIMERequests: !_preferences!.enableIMERequests,
-                        ));
+                            .setPreferences(_preferences!.copyWith(
+                            enableIMERequests:
+                                !_preferences!.enableIMERequests));
                         await _updateStatus();
                       },
                     ),
                   ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Flexible(child: Text('Toggle: ')),
+                    ElevatedButton(
+                      child: const Text('In-app selection'),
+                      onPressed: () async {
+                        await AutofillService().setPreferences(
+                            _preferences!.copyWith(
+                                useInAppSelection:
+                                    !_preferences!.useInAppSelection));
+                        await _updateStatus();
+                      },
+                    ),
+                    ElevatedButton(
+                      child: const Text('One-shot (ephemeral)'),
+                      onPressed: (_preferences?.useInAppSelection ?? false)
+                          ? () async {
+                              await AutofillService().setPreferences(
+                                  _preferences!.copyWith(
+                                      useEphemeralDataset:
+                                          !_preferences!.useEphemeralDataset));
+                              await _updateStatus();
+                            }
+                          : null,
+                    ),
+                  ],
+                ),
+                // Builder: the Navigator is below the MaterialApp, not this widget's context.
+                Builder(
+                  builder: (context) => ElevatedButton(
+                    child: const Text('Open test login form'),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const TestLoginForm())),
+                  ),
                 ),
                 ElevatedButton(
                   child: const Text('requestSetAutofillService'),
