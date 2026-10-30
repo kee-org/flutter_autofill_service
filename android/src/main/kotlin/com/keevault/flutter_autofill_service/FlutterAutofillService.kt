@@ -108,7 +108,8 @@ class FlutterAutofillService : AutofillService() {
         val compatModeRequested = request.flags.hasFlag(FLAG_COMPATIBILITY_MODE_REQUEST)
         val manuallyRequested = request.flags.hasFlag(FLAG_MANUAL_REQUEST)
         var fillDialogRequested =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) request.flags.hasFlag(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) true
+            else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) request.flags.hasFlag(
                 FLAG_SUPPORTS_FILL_DIALOG
             ) else false
 
@@ -117,28 +118,25 @@ class FlutterAutofillService : AutofillService() {
 
         logger.debug { "Fill request config: compatMode: $compatModeRequested , manuallyRequested: $manuallyRequested, fillDialogRequested: $fillDialogRequested, offerToSave: $offerToSave" }
 
-        // fill dialog is another undocumented and buggy Android autofill "feature" that is
-        // unacceptable for human use, at least as of late 2023.
-        // Best guess is that it is only designed to be used by password managers which do not
-        // protect their stored credentials behind any authentication, or perhaps only behind some
-        // sort of authentication that can occur in the background, such as a privileged
-        // Google-owned service.
-        // Thus we keep it disabled now but retain the code that might one-day enable it if Android
-        // gets fixed.
-        fillDialogRequested = false
+        // The fill dialog (Android 13+) has historically been buggy and, with some apps, appears as soon as the
+        // app loads rather than when a field is tapped, so it can be opted out of via the enableFillDialog preference (default true).
+        fillDialogRequested = fillDialogRequested && autofillPreferenceStore.autofillPreferences.enableFillDialog
 
         clientState.putBoolean("isCompatMode", compatModeRequested)
         clientState.putBoolean("isManualRequest", manuallyRequested)
         clientState.putBoolean("isFillDialogRequest", fillDialogRequested)
 
+        // The fields the parser matched to a credential input type (falling back to every
+        // autofill id if none matched). Used for the locked dataset and as fill dialog triggers,
+        // whereas response-level authentication covers all of autoFillIds.
         // Snapshot the flow for this request so a preference change before the result arrives
         // can not produce a mixed-flow response. The locked dataset needs at least one field id,
         // so the new flow is only chosen if it can be built; otherwise this request uses the
         // legacy flow, and neither the clientState flag nor the intent mode is set for the new one.
         val prefs = autofillPreferenceStore.autofillPreferences
-        val lockedFieldIds = parser.fieldIds.flatMap { it.value }.map { it.autofillId }.distinct()
+        val credentialFieldIds = parser.fieldIds.flatMap { it.value }.map { it.autofillId }.distinct()
             .ifEmpty { autoFillIds }
-        val inAppSelection = prefs.useInAppSelection && lockedFieldIds.isNotEmpty()
+        val inAppSelection = prefs.useInAppSelection && credentialFieldIds.isNotEmpty()
         if (prefs.useInAppSelection && !inAppSelection) {
             logger.warn { "No fields available for the unlock dataset; using response-level authentication." }
         }
@@ -244,7 +242,7 @@ class FlutterAutofillService : AutofillService() {
         var lockedDataset: Dataset? = null
         if (inAppSelection) {
             lockedDataset = buildUnlockDataset(
-                request, lockedFieldIds, useLabel, enableIMERequests, intentSender
+                request, credentialFieldIds, useLabel, enableIMERequests, fillDialogRequested, intentSender
             )
             if (lockedDataset == null) {
                 // The flag and intent mode must not outlive the decision to use the new flow, or
@@ -260,6 +258,9 @@ class FlutterAutofillService : AutofillService() {
         // Build a FillResponse object that requires authentication.
         if (lockedDataset != null) {
             fillResponseBuilder.addDataset(lockedDataset)
+            if (fillDialogRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                fillResponseBuilder.setFillDialogTriggerIds(*credentialFieldIds.toTypedArray())
+            }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val inlineRequest = if (enableIMERequests) {
                 request.inlineSuggestionsRequest
@@ -286,14 +287,12 @@ class FlutterAutofillService : AutofillService() {
                 )
                 if (presentationDialog != null) {
                     presentationBuilder.setDialogPresentation(presentationDialog)
-                    // In theory we should be able to set all the autofill ids here so when the user
-                    // taps on any one of them they instantly see the fancy new dialog UI. However,
-                    // at least in every example app I have found so far, it just makes the dialog
-                    // appear when the app first loads. Additionally, there doesn't seem to be a way
-                    // to enable an authentication step here so the user has to manually click on a
-                    // field again and still click on a dataset result so overall it is far worse than
-                    // the v1 autofill feature.
-                    // fillResponseBuilder.setFillDialogTriggerIds(*autoFillIds.toTypedArray())
+                    // Without trigger ids the dialog presentation is never shown. Only reached when
+                    // the user has not opted out via enableFillDialog because with some apps the dialog
+                    // appears as soon as the app loads rather than when a field is tapped.
+                    // Only the credential fields trigger it, not every
+                    // view, to reduce the chance of it appearing as soon as the app loads.
+                    fillResponseBuilder.setFillDialogTriggerIds(*credentialFieldIds.toTypedArray())
                 }
                 val presentations = presentationBuilder.build()
                 fillResponseBuilder.setAuthentication(
@@ -339,6 +338,7 @@ class FlutterAutofillService : AutofillService() {
         fieldIds: Collection<AutofillId>,
         label: String,
         enableIMERequests: Boolean,
+        fillDialogRequested: Boolean,
         intentSender: IntentSender,
     ): Dataset? {
         val menu = RemoteViewsHelper.viewsWithAuth(packageName, label, unlockDrawableId)
@@ -357,7 +357,7 @@ class FlutterAutofillService : AutofillService() {
                 )
             }
         }
-        return UnlockDatasetHelper.build(fieldIds, menu, inline, intentSender)
+        return UnlockDatasetHelper.build(fieldIds, menu, inline, if (fillDialogRequested) menu else null, intentSender)
     }
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {

@@ -11,7 +11,8 @@ data class AutofillPreferences(
         val enableSaving: Boolean = true,
         val enableIMERequests: Boolean = true,
         val useInAppSelection: Boolean = false,
-        val useEphemeralDataset: Boolean = true
+        val useEphemeralDataset: Boolean = true,
+        val enableFillDialog: Boolean = true
 ) {
 
     companion object {
