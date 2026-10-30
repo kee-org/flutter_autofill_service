@@ -1,11 +1,20 @@
 ## 0.23.0
 
-* New opt-in "select-in-app" autofill flow: the unlock suggestion authenticates a single dataset, so after the user picks an entry once in the app's own UI it is filled directly with no further taps. Enable with the new `AutofillPreferences.useInAppSelection` preference (default `false`, which keeps the existing behaviour). Reply with `resultWithDataset`.
-* New `AutofillPreferences.useEphemeralDataset` preference (default `true`), only used with `useInAppSelection` on Android 12+: `true` fills once and keeps the unlock suggestion available; `false` lets Android keep the chosen entry for the session.
-* If the select-in-app flow cannot build its unlock suggestion (no field ids), the request now falls back completely to the existing flow instead of leaving the new-flow flag set, which made the reply to response-level authentication unusable
-* New `AutofillMetadata.appIsBrowser`: true when `appId` is a browser (built-in allowlist, or an app that handles generic https links), so consumers do not treat a browser's package id as an app identity. Adds a narrow `<queries>` entry (`VIEW` + `BROWSABLE` + `https`) to the plugin manifest for package visibility on Android 11+; remove it with `tools:node="remove"` to rely on the allowlist only.
+* Fix example app configuration to prohibit malicious installed apps from forging requests for other apps/sites - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-7g4g-ggjf-xjvr
+* Prevent incidental logging of typed secrets - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-3gjj-334c-pr82
+* Add optional ID field to PwDataset - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-v8w7-2wj8-3m27
+* New trust signals to help you decide whether a request is genuine or should be blocked and/or referred to the end user for a decision - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-ghq9-vv2r-5pwq
+   * **Breaking:** `AutofillMetadata.packageNames` (a set) is replaced by `AutofillMetadata.appId` (a single nullable string, null when no app could be identified). The ID is taken from the most reliable source available: the activity component package, then the package ID of the view nodes, then (least reliable) the window title.
+   * Many additional trust signals are now available too - see the updated Readme for the full list.
+   * To keep users of your apps secure against spoofing attacks it is important to understand these signals.
+* Logging now defaults to off until the stored `enableDebug` preference is applied, which the plugin now does when it attaches to a Flutter engine.
+* Excluded packages (system apps, your own app and any listed in the new optional `com.keevault.flutter_autofill_service.EXCLUDED_PACKAGES` meta-data) are now checked before anything else, so they no longer trigger save prompts. Your own package is excluded automatically; the hard-coded `com.keevault.keevault` entry is gone.
+* Credentials are now only filled into visible fields that belong to the focused web domain (or, for requests without a web origin, to no web domain). Fields that are hidden or 1 pixel or less in width or height are skipped.
+* New opt-in in-app selection flow: with `AutofillPreferences.useInAppSelection` enabled, the unlock suggestion opens your app so the user can pick an entry once, and it is then filled directly with no further taps. Reply with `resultWithDataset`. Default is `false`, which keeps the existing behaviour.
+* New `AutofillPreferences.useEphemeralDataset` preference (default `true`; Android 12+ with `useInAppSelection` only): `true` fills once and keeps offering the unlock suggestion, `false` lets Android remember the chosen entry for the session.
 * Use distinct request codes for the unlock and "Use a different entry" PendingIntents
 * Fix username and password field IDs being swapped when building save info in the replacement fill response
+* (legacy fill pathway): Changed return API for interactively selected items since they no longer autofill a dataset and sometimes fully ignore it unless wrapped in a fillresponse.
 
 ## 0.22.0
 
