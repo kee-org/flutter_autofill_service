@@ -24,6 +24,7 @@ object UnlockDatasetHelper {
         fieldIds: Collection<AutofillId>,
         menu: RemoteViews,
         inline: InlinePresentation?,
+        dialog: RemoteViews?,
         intentSender: IntentSender,
     ): Dataset? = try {
         Dataset.Builder().apply {
@@ -31,6 +32,7 @@ object UnlockDatasetHelper {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val presentations = Presentations.Builder().setMenuPresentation(menu).apply {
                         if (inline != null) setInlinePresentation(inline)
+                        if (dialog != null) setDialogPresentation(dialog)
                     }.build()
                     setField(id, Field.Builder().setPresentations(presentations).build())
                 } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && inline != null) {

@@ -35,6 +35,7 @@ class AutofillPreferences {
     this.enableIMERequests = true,
     this.useInAppSelection = false,
     this.useEphemeralDataset = true,
+    this.enableFillDialog = true,
   });
 
   factory AutofillPreferences.fromJson(Map<dynamic, dynamic> json) =>
@@ -44,6 +45,7 @@ class AutofillPreferences {
         enableIMERequests: json['enableIMERequests'] as bool? ?? true,
         useInAppSelection: json['useInAppSelection'] as bool? ?? false,
         useEphemeralDataset: json['useEphemeralDataset'] as bool? ?? true,
+        enableFillDialog: json['enableFillDialog'] as bool? ?? true,
       );
 
   final bool enableDebug;
@@ -73,12 +75,20 @@ class AutofillPreferences {
   /// true.
   final bool useEphemeralDataset;
 
+  /// Whether to offer the unlock suggestion in Android's fill dialog, which
+  /// appears when a field is first focused. Requires Android 13 (API 33) or
+  /// later and only takes effect when the app being filled also supports it.
+  /// Enabled by default (opt-out). Experimental: behaviour varies between apps
+  /// and Android versions.
+  final bool enableFillDialog;
+
   AutofillPreferences copyWith({
     bool? enableDebug,
     bool? enableSaving,
     bool? enableIMERequests,
     bool? useInAppSelection,
     bool? useEphemeralDataset,
+    bool? enableFillDialog,
   }) =>
       AutofillPreferences(
         enableDebug: enableDebug ?? this.enableDebug,
@@ -86,6 +96,7 @@ class AutofillPreferences {
         enableIMERequests: enableIMERequests ?? this.enableIMERequests,
         useInAppSelection: useInAppSelection ?? this.useInAppSelection,
         useEphemeralDataset: useEphemeralDataset ?? this.useEphemeralDataset,
+        enableFillDialog: enableFillDialog ?? this.enableFillDialog,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -94,6 +105,7 @@ class AutofillPreferences {
         'enableIMERequests': enableIMERequests,
         'useInAppSelection': useInAppSelection,
         'useEphemeralDataset': useEphemeralDataset,
+        'enableFillDialog': enableFillDialog,
       };
 }
 
