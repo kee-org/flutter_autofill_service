@@ -100,7 +100,7 @@ class FlutterAutofillService : AutofillService() {
 
         val context = request.fillContexts.last()
         val parser = AssistStructureParser(context.structure, this)
-        logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, dalVerified=${parser.dalVerified}" }
+        logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, webDomains=${parser.webDomains}" }
 
         val autoFillIds = parser.autoFillIds.distinct()
         var useLabel = unlockLabel
@@ -203,13 +203,12 @@ class FlutterAutofillService : AutofillService() {
             val startAuthIntent = IntentHelpers.getStartIntent(
                 activityName,
                 parser.appId,
-                parser.appIdTrusted,
+                parser.appIdSource,
                 parser.webDomains,
                 applicationContext,
                 mode,
                 null,
                 parser.isWebOrigin,
-                parser.dalVerified,
                 parser.appIsBrowser
             )
             //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
@@ -316,7 +315,7 @@ class FlutterAutofillService : AutofillService() {
         }
         logger.info {
             "remoteView for packageName: $packageName -- " +
-                    "detected autofill appId: ${parser.appId} (trusted:${parser.appIdTrusted}) " +
+                    "detected autofill appId: ${parser.appId} (source:${parser.appIdSource}) " +
                     "webDomains: ${parser.webDomains}" +
                     "autoFillIds: ${autoFillIds.size}"
         }
@@ -324,7 +323,7 @@ class FlutterAutofillService : AutofillService() {
         try {
             callback.onSuccess(fillResponseBuilder.build())
         } catch (e: TransactionTooLargeException) {
-            logger.error({ "Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.appId} (trusted:${parser.appIdTrusted})" })
+            logger.error({ "Too many auto fill ids discovered ${autoFillIds.size} for ${parser.webDomains},  ${parser.appId} (source:${parser.appIdSource})" })
             throw RuntimeException(
                 "Too many auto fill ids discovered ${autoFillIds.size} for " +
                         "${parser.webDomains}, ${parser.appId}",
@@ -377,15 +376,14 @@ class FlutterAutofillService : AutofillService() {
         var username: String? = null
         var password: String? = null
         var appId: String? = null
-        var appIdTrusted: Boolean = false
+        var appIdSource: AppIdSource = AppIdSource.NONE
         var webDomains: Set<WebDomain>? = null
         var isWebOrigin: Boolean = false
-        var dalVerified: Boolean = false
         var appIsBrowser: Boolean = false
 
         request.fillContexts.reversed().forEach { context ->
             val parser = AssistStructureParser(context.structure, this)
-            logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, dalVerified=${parser.dalVerified}" }
+            logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, webDomains=${parser.webDomains}" }
             val usernameNode = parser.findNodeByAutofillId(usernameId)
             val passwordNode = parser.findNodeByAutofillId(passwordId)
             try {
@@ -406,13 +404,12 @@ class FlutterAutofillService : AutofillService() {
             // consistent picture of whether they are trustworthy or not
             if (appId == null && parser.appId != null) {
                 appId = parser.appId
-                appIdTrusted = parser.appIdTrusted
+                appIdSource = parser.appIdSource
                 appIsBrowser = parser.appIsBrowser
             }
             if (webDomains == null && parser.webDomains.isNotEmpty()) {
                 webDomains = parser.webDomains
                 isWebOrigin = parser.isWebOrigin
-                dalVerified = parser.dalVerified
             }
         }
         val isCompatMode =
@@ -421,13 +418,12 @@ class FlutterAutofillService : AutofillService() {
         val startIntent = IntentHelpers.getStartIntent(
             activityName,
             appId,
-            appIdTrusted,
+            appIdSource,
             webDomains ?: setOf(),
             applicationContext,
             "/autofill_save",
             SaveInfoMetadata(username, password, isCompatMode),
             isWebOrigin,
-            dalVerified,
             appIsBrowser
         )
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -441,10 +437,9 @@ class FlutterAutofillService : AutofillService() {
 @JsonClass(generateAdapter = true)
 data class AutofillMetadata(
         val appId: String? = null,
-        val appIdTrusted: Boolean = false,
+        val appIdSource: AppIdSource = AppIdSource.NONE,
         val webDomains: Set<WebDomain>,
         val isWebOrigin: Boolean = false,
-        val dalVerified: Boolean = false,
         val appIsBrowser: Boolean = false,
         val saveInfo: SaveInfoMetadata?
 ) {
@@ -651,4 +646,8 @@ inline fun Int?.hasFlag(flag: Int) = this != null && flag and this == flag
 inline fun Int.withFlag(flag: Int) = this or flag
 inline fun Int.minusFlag(flag: Int) = this and flag.inv()
 
-data class MatchedField(val heuristic: AutofillHeuristic, val autofillId: AutofillId)
+/**
+ * @param webHost lower case web domain the field belongs to, or null if it is not in a web page
+ * @param isVisible false if the field, or an ancestor, is not displayed or is too small to see
+ */
+data class MatchedField(val heuristic: AutofillHeuristic, val autofillId: AutofillId, val webHost: String? = null, val isVisible: Boolean = true)
