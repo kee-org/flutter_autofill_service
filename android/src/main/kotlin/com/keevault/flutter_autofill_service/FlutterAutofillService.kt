@@ -131,6 +131,22 @@ class FlutterAutofillService : AutofillService() {
         clientState.putBoolean("isManualRequest", manuallyRequested)
         clientState.putBoolean("isFillDialogRequest", fillDialogRequested)
 
+        // Snapshot the flow for this request so a preference change before the result arrives
+        // can not produce a mixed-flow response. The locked dataset needs at least one field id,
+        // so the new flow is only chosen if it can be built; otherwise this request uses the
+        // legacy flow, and neither the clientState flag nor the intent mode is set for the new one.
+        val prefs = autofillPreferenceStore.autofillPreferences
+        val lockedFieldIds = parser.fieldIds.flatMap { it.value }.map { it.autofillId }.distinct()
+            .ifEmpty { autoFillIds }
+        val inAppSelection = prefs.useInAppSelection && lockedFieldIds.isNotEmpty()
+        if (prefs.useInAppSelection && !inAppSelection) {
+            logger.warn { "No fields available for the unlock dataset; using response-level authentication." }
+        }
+        if (inAppSelection) {
+            clientState.putBoolean("isInAppSelection", true)
+            clientState.putBoolean("isEphemeralDataset", prefs.useEphemeralDataset)
+        }
+
         val fillResponseBuilder: FillResponse.Builder = FillResponse.Builder()
             .setClientState(clientState)
 
@@ -185,41 +201,65 @@ class FlutterAutofillService : AutofillService() {
             } ?: "com.keevault.flutter_autofill_service_example.AutofillActivity"
         logger.debug { "got activity $activityName" }
 
-        val startAuthIntent = IntentHelpers.getStartIntent(
-            activityName,
-            parser.appId,
-            parser.appIdTrusted,
-            parser.webDomains,
-            applicationContext,
-            "/autofill",
-            null,
-            parser.isWebOrigin,
-            parser.dalVerified
-        )
-        //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
-        val pendingIntent: PendingIntent
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            pendingIntent = PendingIntent.getActivity(
-                this,
-                1230,
-                startAuthIntent,
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
+        fun createAuthIntentSender(mode: String): IntentSender {
+            val startAuthIntent = IntentHelpers.getStartIntent(
+                activityName,
+                parser.appId,
+                parser.appIdTrusted,
+                parser.webDomains,
+                applicationContext,
+                mode,
+                null,
+                parser.isWebOrigin,
+                parser.dalVerified
             )
-        } else {
-            @SuppressLint("UnspecifiedImmutableFlag")
-            pendingIntent = PendingIntent.getActivity(
-                this,
-                1230,
-                startAuthIntent,
-                PendingIntent.FLAG_CANCEL_CURRENT
-            )
+            //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
+            val pendingIntent: PendingIntent
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                pendingIntent = PendingIntent.getActivity(
+                    this,
+                    IntentHelpers.REQUEST_CODE_UNLOCK,
+                    startAuthIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+            } else {
+                @SuppressLint("UnspecifiedImmutableFlag")
+                pendingIntent = PendingIntent.getActivity(
+                    this,
+                    IntentHelpers.REQUEST_CODE_UNLOCK,
+                    startAuthIntent,
+                    PendingIntent.FLAG_CANCEL_CURRENT
+                )
+            }
+            logger.debug { "startIntent:$startAuthIntent (${startAuthIntent.extras}) - sender: ${pendingIntent.intentSender}" }
+            return pendingIntent.intentSender
         }
-        val intentSender: IntentSender = pendingIntent.intentSender
 
-        logger.debug { "startIntent:$startAuthIntent (${startAuthIntent.extras}) - sender: $intentSender" }
+        var intentSender = createAuthIntentSender(if (inAppSelection) "/autofill_select" else "/autofill")
+
+        // The in-app selection flow authenticates a single locked dataset rather than the whole
+        // response. The framework fills the dataset returned by the auth activity straight away,
+        // whereas the reply to response-level authentication is only offered as suggestions.
+        var lockedDataset: Dataset? = null
+        if (inAppSelection) {
+            lockedDataset = buildUnlockDataset(
+                request, lockedFieldIds, useLabel, enableIMERequests, intentSender
+            )
+            if (lockedDataset == null) {
+                // The flag and intent mode must not outlive the decision to use the new flow, or
+                // the plugin would reply to response-level authentication with a bare Dataset.
+                logger.warn { "Failed to build the unlock dataset; using response-level authentication." }
+                clientState.remove("isInAppSelection")
+                clientState.remove("isEphemeralDataset")
+                fillResponseBuilder.setClientState(clientState)
+                intentSender = createAuthIntentSender("/autofill")
+            }
+        }
 
         // Build a FillResponse object that requires authentication.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (lockedDataset != null) {
+            fillResponseBuilder.addDataset(lockedDataset)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val inlineRequest = if (enableIMERequests) {
                 request.inlineSuggestionsRequest
             } else {
@@ -291,6 +331,32 @@ class FlutterAutofillService : AutofillService() {
                 e
             )
         }
+    }
+
+    private fun buildUnlockDataset(
+        request: FillRequest,
+        fieldIds: Collection<AutofillId>,
+        label: String,
+        enableIMERequests: Boolean,
+        intentSender: IntentSender,
+    ): Dataset? {
+        val menu = RemoteViewsHelper.viewsWithAuth(packageName, label, unlockDrawableId)
+        var inline: InlinePresentation? = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && enableIMERequests) {
+            val inlineRequest = request.inlineSuggestionsRequest
+            // The unlock dataset is the only suggestion so a single slot is enough.
+            if (inlineRequest != null && inlineRequest.maxSuggestionCount >= 1) {
+                inline = InlinePresentationHelper.viewsWithAuth(
+                    label,
+                    inlineRequest.inlinePresentationSpecs.first(),
+                    null,
+                    this,
+                    unlockDrawableId,
+                    false
+                )
+            }
+        }
+        return UnlockDatasetHelper.build(fieldIds, menu, inline, intentSender)
     }
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {

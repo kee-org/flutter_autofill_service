@@ -29,26 +29,71 @@ class PwDataset {
 }
 
 class AutofillPreferences {
-  AutofillPreferences(
-      {required this.enableDebug,
-      this.enableSaving = true,
-      this.enableIMERequests = true});
+  AutofillPreferences({
+    required this.enableDebug,
+    this.enableSaving = true,
+    this.enableIMERequests = true,
+    this.useInAppSelection = false,
+    this.useEphemeralDataset = true,
+  });
 
   factory AutofillPreferences.fromJson(Map<dynamic, dynamic> json) =>
       AutofillPreferences(
         enableDebug: json['enableDebug'] as bool,
         enableSaving: json['enableSaving'] as bool? ?? true,
         enableIMERequests: json['enableIMERequests'] as bool? ?? true,
+        useInAppSelection: json['useInAppSelection'] as bool? ?? false,
+        useEphemeralDataset: json['useEphemeralDataset'] as bool? ?? true,
       );
 
   final bool enableDebug;
   final bool enableSaving;
   final bool enableIMERequests;
 
+  /// When true, the unlock suggestion opens the app to show its own entry
+  /// picker ([AutofillService.fillRequestedInteractive] is true) and the chosen
+  /// entry is filled directly, without any further taps. The app must reply
+  /// with [AutofillService.resultWithDataset].
+  ///
+  /// When false (default) the legacy flow is used: the app returns a list of
+  /// matching entries with [AutofillService.resultWithDatasets] and the user
+  /// picks from Android's autofill UI.
+  final bool useInAppSelection;
+
+  /// Whether the entry chosen in the in-app selection flow is a one-shot fill.
+  ///
+  /// When true (default) the entry is filled once and Android keeps offering
+  /// the "unlock" suggestion, so the user can pick a different entry by
+  /// tapping it again. Android does not retain the credential.
+  /// When false Android keeps the chosen entry for the rest of the autofill
+  /// session and offers it again without unlocking.
+  ///
+  /// Only takes effect on Android 12 (API 31) or later; older versions always
+  /// behave as if this were false. Has no effect unless [useInAppSelection] is
+  /// true.
+  final bool useEphemeralDataset;
+
+  AutofillPreferences copyWith({
+    bool? enableDebug,
+    bool? enableSaving,
+    bool? enableIMERequests,
+    bool? useInAppSelection,
+    bool? useEphemeralDataset,
+  }) =>
+      AutofillPreferences(
+        enableDebug: enableDebug ?? this.enableDebug,
+        enableSaving: enableSaving ?? this.enableSaving,
+        enableIMERequests: enableIMERequests ?? this.enableIMERequests,
+        useInAppSelection: useInAppSelection ?? this.useInAppSelection,
+        useEphemeralDataset: useEphemeralDataset ?? this.useEphemeralDataset,
+      );
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'enableDebug': enableDebug,
         'enableSaving': enableSaving,
         'enableIMERequests': enableIMERequests,
+        'useInAppSelection': useInAppSelection,
+        'useEphemeralDataset': useEphemeralDataset,
       };
 }
 

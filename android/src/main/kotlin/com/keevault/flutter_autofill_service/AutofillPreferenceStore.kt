@@ -9,7 +9,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 data class AutofillPreferences(
         val enableDebug: Boolean = false,
         val enableSaving: Boolean = true,
-        val enableIMERequests: Boolean = true
+        val enableIMERequests: Boolean = true,
+        val useInAppSelection: Boolean = false,
+        val useEphemeralDataset: Boolean = true
 ) {
 
     companion object {

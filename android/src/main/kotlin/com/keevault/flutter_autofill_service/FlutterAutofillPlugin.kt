@@ -244,6 +244,17 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
 
         val activity = requireNotNull(this.activity)
+        if (clientState.getBoolean("isInAppSelection", false)) {
+            // The in-app selection flow authenticates a single dataset so the reply must be a
+            // single Dataset. Accept the plural call from older consumers by using the first entry.
+            logger.warn { "In-app selection flow expects resultWithDataset; got resultWithDatasets with ${pwDatasets.size} entries." }
+            if (pwDatasets.isEmpty()) {
+                resultWithNullDataset(result)
+            } else {
+                resultWithDataset(pwDatasets.first(), result)
+            }
+            return
+        }
         val structure = AssistStructureParser(structureParcel, context)
         logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
         var totalToReturn = 0
@@ -257,7 +268,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         var autoFillIdPasswordMatched: AutofillId? = null
         var autoFillIdUsernameMatched: AutofillId? = null
-        val (autoFillIdPasswordGuessed, autoFillIdUsernameGuessed) = SaveHelper.guessAutofillIdsForSave(
+        val (autoFillIdUsernameGuessed, autoFillIdPasswordGuessed) = SaveHelper.guessAutofillIdsForSave(
             structure
         )
 
@@ -429,7 +440,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 intentSender = PendingIntent.getActivity(
                     context,
-                    1230,
+                    IntentHelpers.REQUEST_CODE_SELECT_ANOTHER,
                     startIntent,
                     PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_MUTABLE
                 ).intentSender
@@ -437,7 +448,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 @SuppressLint("UnspecifiedImmutableFlag")
                 intentSender = PendingIntent.getActivity(
                     context,
-                    1230,
+                    IntentHelpers.REQUEST_CODE_SELECT_ANOTHER,
                     startIntent,
                     PendingIntent.FLAG_CANCEL_CURRENT
                 ).intentSender
@@ -592,7 +603,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
             @SuppressLint("UnspecifiedImmutableFlag")
             intentSender = PendingIntent.getActivity(
                 context,
-                1230,
+                IntentHelpers.REQUEST_CODE_SELECT_ANOTHER,
                 startIntent,
                 PendingIntent.FLAG_CANCEL_CURRENT
             ).intentSender
@@ -658,6 +669,10 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
 
         val activity = requireNotNull(this.activity)
+        val inAppSelection = clientState.getBoolean("isInAppSelection", false)
+        if (!inAppSelection && lastIntent?.getStringExtra("autofill_mode") != "/autofill_select") {
+            logger.warn { "resultWithDataset called outside of the in-app selection flow and outside of a \"Use a different entry\" launch." }
+        }
         val structure = AssistStructureParser(structureParcel, context)
         logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, dalVerified=${structure.dalVerified}" }
         logger.debug { "structure: $structure" }
@@ -671,7 +686,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
         var autoFillIdPasswordMatched: AutofillId? = null
         var autoFillIdUsernameMatched: AutofillId? = null
-        val (autoFillIdPasswordGuessed, autoFillIdUsernameGuessed) = SaveHelper.guessAutofillIdsForSave(
+        val (autoFillIdUsernameGuessed, autoFillIdPasswordGuessed) = SaveHelper.guessAutofillIdsForSave(
             structure
         )
 
@@ -680,7 +695,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 clientState
             )
 
-            val respondInline = maxInlineSuggestionCount >= 2
+            // The legacy reply shares the list with a "Use a different entry" item so needs two
+            // slots. The in-app selection reply is a single dataset so needs only one.
+            val respondInline = maxInlineSuggestionCount >= (if (inAppSelection) 1 else 2)
 
             val builder =
                 createDatasetBuilder(remoteViews, respondInline, inlineRequest, isFillDialogRequest)
@@ -727,6 +744,20 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 }
             }
             val dataset = builder.build()
+
+            if (inAppSelection) {
+                // The service authenticated a single dataset so the reply is a Dataset, not a
+                // FillResponse. SaveInfo already travelled in the initial response.
+                val ephemeral = clientState.getBoolean("isEphemeralDataset", true)
+                val replyIntent = Intent().apply {
+                    putExtra(EXTRA_AUTHENTICATION_RESULT_EPHEMERAL_DATASET, ephemeral)
+                    putExtra(EXTRA_AUTHENTICATION_RESULT, dataset)
+                }
+                activity.setResult(RESULT_OK, replyIntent)
+                activity.finish()
+                result.success(true)
+                return
+            }
 
             val fillResponseBuilder = FillResponse.Builder().apply {
                 addDataset(dataset)
@@ -790,6 +821,18 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                     }
             }
             val dataset = builder.build()
+
+            if (inAppSelection) {
+                // Dataset authentication (see above). The ephemeral extra needs API 31+ so the
+                // framework's default "replace the locked dataset" behaviour applies here.
+                val replyIntent = Intent().apply {
+                    putExtra(EXTRA_AUTHENTICATION_RESULT, dataset)
+                }
+                activity.setResult(RESULT_OK, replyIntent)
+                activity.finish()
+                result.success(true)
+                return
+            }
 
             val fillResponseBuilder = FillResponse.Builder().apply {
                 addDataset(dataset)
