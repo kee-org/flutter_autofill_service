@@ -8,8 +8,10 @@ import org.tinylog.provider.ProviderRegistry
 
 class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
 
+    // Fail closed: nothing is logged until the stored enableDebug preference has been applied
+    // (see applyPreference). Verbose entries contain browsing and app-usage history.
     @Volatile
-    var activeLevel: Level = Level.TRACE;
+    var activeLevel: Level = Level.OFF
 
     override fun isEnabled(depth: Int, tag: String?, level: Level?): Boolean {
         return activeLevel <= level && super.isEnabled(depth + 1, tag, level)
@@ -64,6 +66,11 @@ class DynamicLevelLoggingProvider : TinylogLoggingProvider() {
          */
         fun setActiveLevel(level: Level) {
             (ProviderRegistry.getLoggingProvider() as? DynamicLevelLoggingProvider)?.activeLevel = level
+        }
+
+        /** Applies the user's `enableDebug` preference: everything when true, nothing when false. */
+        fun applyPreference(enableDebug: Boolean) {
+            setActiveLevel(if (enableDebug) Level.TRACE else Level.OFF)
         }
     }
 

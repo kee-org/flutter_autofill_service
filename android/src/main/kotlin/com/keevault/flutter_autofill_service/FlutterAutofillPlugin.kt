@@ -38,7 +38,6 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.tinylog.Level
 
 
 private val logger = KotlinLogging.logger {}
@@ -48,7 +47,9 @@ data class PwDataset(
     val label: String,
     val username: String,
     val password: String
-)
+) {
+    override fun toString() = "PwDataset(id=$id, label=$label, username=<redacted>, password=<redacted>)"
+}
 
 class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
     PluginRegistry.ActivityResultListener, PluginRegistry.NewIntentListener, ActivityAware {
@@ -168,9 +169,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 autofillPreferenceStore.autofillPreferences = prefs
 
                 // Make sure we have the latest log level configuration
-                DynamicLevelLoggingProvider.setActiveLevel(
-                    if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF
-                )
+                DynamicLevelLoggingProvider.applyPreference(autofillPreferenceStore.autofillPreferences.enableDebug)
                 result.success(true)
             }
 
@@ -358,9 +357,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 // Android only allows us to select one set of autofillIDs. We pick the first one that contains
                                 // any match. Again, there is a small chance this will differ from the set we select when we have
                                 // no data available but there aren't likely to be many situations where that actually happens.
-                                if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                                if (autoFillIdPasswordMatched == null && type == AutofillInputType.Password) {
                                     autoFillIdPasswordMatched = field.autofillId
-                                } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                                } else if (autoFillIdUsernameMatched == null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
                                     autoFillIdUsernameMatched = field.autofillId
                                 }
 
@@ -537,9 +536,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                                 // Android only allows us to select one set of autofillIDs. We pick the first one that contains
                                 // any match. Again, there is a small chance this will differ from the set we select when we have
                                 // no data available but there aren't likely to be many situations where that actually happens.
-                                if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                                if (autoFillIdPasswordMatched == null && type == AutofillInputType.Password) {
                                     autoFillIdPasswordMatched = field.autofillId
-                                } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                                } else if (autoFillIdUsernameMatched == null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
                                     autoFillIdUsernameMatched = field.autofillId
                                 }
 
@@ -712,9 +711,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                         return@allIds
                     }
 
-                    if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                    if (autoFillIdPasswordMatched == null && type == AutofillInputType.Password) {
                         autoFillIdPasswordMatched = field.autofillId
-                    } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                    } else if (autoFillIdUsernameMatched == null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
                         autoFillIdUsernameMatched = field.autofillId
                     }
 
@@ -792,9 +791,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                             return@allIds
                         }
 
-                        if (autoFillIdPasswordMatched != null && type == AutofillInputType.Password) {
+                        if (autoFillIdPasswordMatched == null && type == AutofillInputType.Password) {
                             autoFillIdPasswordMatched = field.autofillId
-                        } else if (autoFillIdUsernameMatched != null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
+                        } else if (autoFillIdUsernameMatched == null && (type == AutofillInputType.Email || type == AutofillInputType.UserName)) {
                             autoFillIdUsernameMatched = field.autofillId
                         }
 
@@ -1069,15 +1068,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     override fun onNewIntent(intent: Intent): Boolean {
         lastIntent = intent
-        logger.info {
-            "We got a new intent. $intent (extras: ${
-                intent.extras?.keySet()?.map {
-                    it to intent.extras?.get(
-                        it
-                    )
-                }
-            })"
-        }
+        logger.info { "We got a new intent. ${IntentHelpers.describeForLog(intent)}" }
         return false
     }
 
@@ -1126,6 +1117,12 @@ class FlutterAutofillPlugin : FlutterPlugin, ActivityAware {
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         val channel =
             MethodChannel(binding.binaryMessenger, "com.keevault/flutter_autofill_service")
+        // This process may never have created the autofill service (normal app launch, or an
+        // autofill activity restarted after process death), so apply the stored preference now
+        // rather than waiting for Dart to call setPreferences.
+        DynamicLevelLoggingProvider.applyPreference(
+            AutofillPreferenceStore.getInstance(binding.applicationContext).autofillPreferences.enableDebug
+        )
         impl = FlutterAutofillPluginImpl(binding.applicationContext)
         channel.setMethodCallHandler(impl)
         this.channel = channel

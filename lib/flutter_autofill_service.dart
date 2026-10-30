@@ -343,6 +343,7 @@ class AutofillWebDomain {
     this.scheme,
     required this.domain,
     this.dalVerified = false,
+    this.userSelected = false,
     this.focused = false,
   });
 
@@ -351,6 +352,7 @@ class AutofillWebDomain {
         scheme: json['scheme'] as String?,
         domain: json['domain'] as String,
         dalVerified: json['dalVerified'] as bool? ?? false,
+        userSelected: json['userSelected'] as bool? ?? false,
         focused: json['focused'] as bool? ?? false,
       );
 
@@ -358,10 +360,18 @@ class AutofillWebDomain {
   final String domain;
 
   /// True only if the app presenting the request is a known browser, or Android
-  /// reports it as verified (or user-selected) to handle links for exactly this
-  /// domain (Digital Asset Links, Android 12+). A verified domain says nothing
-  /// about the other domains in the same request.
+  /// reports it as verified to handle links for exactly this domain (Digital
+  /// Asset Links, Android 12+). A verified domain says nothing about the other
+  /// domains in the same request. Never true merely because the user chose to
+  /// let the app open the domain's links: see [userSelected].
   final bool dalVerified;
+
+  /// True if the app declares this domain but Android has not verified it, and
+  /// the user enabled "Open supported links" for the app. That is the user's
+  /// choice about link handling, not proof that the app owns the domain (a
+  /// malicious app can ask the user to enable it), so treat it as unverified.
+  /// It is never true together with [dalVerified].
+  final bool userSelected;
 
   /// True for the one domain the request is about: the domain of the focused
   /// field. At most one domain is focused, and none is if it cannot be determined.
@@ -374,6 +384,7 @@ class AutofillWebDomain {
         if (scheme != null) 'scheme': scheme!,
         'domain': domain,
         'dalVerified': dalVerified,
+        'userSelected': userSelected,
         'focused': focused,
       };
 }

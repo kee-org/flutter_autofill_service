@@ -23,7 +23,6 @@ import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.tinylog.Level
 import org.tinylog.policies.DynamicPolicy
 import java.util.*
 
@@ -32,12 +31,21 @@ private val logger = KotlinLogging.logger {}
 
 class FlutterAutofillService : AutofillService() {
 
-    private val excludedPackages = listOf(
-        "com.keevault.keevault",
-        "android",
-        "com.android.settings",
-        "com.oneplus.applocker",
-    )
+    /**
+     * Apps that never receive autofill or save prompts: a few system apps, the consuming app itself
+     * (so its own master password screen is not offered for autofill or saving) and any packages
+     * the consumer lists in the `com.keevault.flutter_autofill_service.EXCLUDED_PACKAGES`
+     * application meta-data (comma separated).
+     */
+    private val excludedPackages: Set<String> by lazy {
+        val extra = try {
+            packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA).metaData
+                ?.getString("com.keevault.flutter_autofill_service.EXCLUDED_PACKAGES")
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+        buildExcludedPackages(packageName, extra)
+    }
 
     private lateinit var autofillPreferenceStore: AutofillPreferenceStore
     private var unlockLabel = "Autofill"
@@ -47,7 +55,7 @@ class FlutterAutofillService : AutofillService() {
         super.onCreate()
         autofillPreferenceStore = AutofillPreferenceStore.getInstance(applicationContext)
         System.setProperty("logs.folder", filesDir.absolutePath + "/logs");
-        DynamicLevelLoggingProvider.setActiveLevel(if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF)
+        DynamicLevelLoggingProvider.applyPreference(autofillPreferenceStore.autofillPreferences.enableDebug)
         logger.debug { "Autofill service was created. debug: ${autofillPreferenceStore.autofillPreferences.enableDebug}" }
     }
 
@@ -57,7 +65,7 @@ class FlutterAutofillService : AutofillService() {
         // Make sure we have the latest log level configuration each time we are asked to start the autofill procedure.
         // Android may re-use the same process for a long time and we may have had the shared preferences updated from
         // a different process/task in the mean time.
-        DynamicLevelLoggingProvider.setActiveLevel(if (autofillPreferenceStore.autofillPreferences.enableDebug) Level.TRACE else Level.OFF)
+        DynamicLevelLoggingProvider.applyPreference(autofillPreferenceStore.autofillPreferences.enableDebug)
 
         // If the user has just deleted the autofill logs through the main app, the file handle
         // already open from this process will remain the active destination for new log entries
@@ -101,6 +109,14 @@ class FlutterAutofillService : AutofillService() {
         val context = request.fillContexts.last()
         val parser = AssistStructureParser(context.structure, this)
         logger.debug { "DAL: isWebOrigin=${parser.isWebOrigin}, webDomains=${parser.webDomains}" }
+
+        // Must come before anything that can return a response, including the save-only one below,
+        // otherwise excluded apps can still trigger save prompts.
+        if (isExcluded(parser, excludedPackages)) {
+            logger.debug { "Ignoring request from an excluded package" }
+            callback.onSuccess(null)
+            return
+        }
 
         val autoFillIds = parser.autoFillIds.distinct()
         var useLabel = unlockLabel
@@ -181,17 +197,6 @@ class FlutterAutofillService : AutofillService() {
             logger.info { "Debug: No password fields but sign-in email field detected. Proceeding with autofill for multi-step login." }
         }
 
-        if (parser.componentPackage != null && parser.componentPackage in excludedPackages) {
-            callback.onSuccess(null)
-            return
-        } else if (parser.nodeIdPackages.any { it in excludedPackages }) {
-            callback.onSuccess(null)
-            return
-        } else if (parser.titlePackages.any { it in excludedPackages }) {
-            callback.onSuccess(null)
-            return
-        }
-
         logger.trace { "Trying to fetch package info." }
         val activityName =
             packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA).run {
@@ -229,7 +234,7 @@ class FlutterAutofillService : AutofillService() {
                     PendingIntent.FLAG_CANCEL_CURRENT
                 )
             }
-            logger.debug { "startIntent:$startAuthIntent (${startAuthIntent.extras}) - sender: ${pendingIntent.intentSender}" }
+            logger.debug { "startIntent:${IntentHelpers.describeForLog(startAuthIntent)} - sender: ${pendingIntent.intentSender}" }
             return pendingIntent.intentSender
         }
 
@@ -371,8 +376,12 @@ class FlutterAutofillService : AutofillService() {
         logger.debug { "got activity $activityName" }
 
         val clientState = request.clientState!!
-        val usernameId = clientState.getParcelable<AutofillId>("usernameId")
         val passwordId = clientState.getParcelable<AutofillId>("passwordId")
+        // The same field can't be both. Reading it twice would save the password as the username too.
+        val usernameId = clientState.getParcelable<AutofillId>("usernameId")?.takeIf { it != passwordId }
+        if (usernameId == null && clientState.getParcelable<AutofillId>("usernameId") != null) {
+            logger.warn { "Save request has the same field ID for username and password. Ignoring the username." }
+        }
         var username: String? = null
         var password: String? = null
         var appId: String? = null
@@ -434,6 +443,36 @@ class FlutterAutofillService : AutofillService() {
     }
 }
 
+private val builtInExcludedPackages = listOf(
+    "android",
+    "com.android.settings",
+    "com.oneplus.applocker",
+)
+
+/**
+ * The built-in exclusions, the consuming app's own [ownPackage] and the comma separated
+ * [consumerList] from the consumer's meta-data.
+ */
+internal fun buildExcludedPackages(ownPackage: String, consumerList: String?): Set<String> =
+    (builtInExcludedPackages + ownPackage + (consumerList?.split(',').orEmpty()))
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+
+/** True if any package identified for the request, from any source, is excluded. */
+internal fun isExcluded(parser: AssistStructureParser, excluded: Set<String>): Boolean =
+    isExcluded(parser.componentPackage, parser.nodeIdPackages, parser.titlePackages, excluded)
+
+internal fun isExcluded(
+    componentPackage: String?,
+    nodeIdPackages: Collection<String>,
+    titlePackages: Collection<String>,
+    excluded: Set<String>
+): Boolean =
+    (componentPackage != null && componentPackage in excluded) ||
+        nodeIdPackages.any { it in excluded } ||
+        titlePackages.any { it in excluded }
+
 @JsonClass(generateAdapter = true)
 data class AutofillMetadata(
         val appId: String? = null,
@@ -466,6 +505,8 @@ data class SaveInfoMetadata(
         val password: String?,
         val isCompatMode: Boolean?
 ) {
+    override fun toString() = "SaveInfoMetadata(username=<redacted>, password=<redacted>, isCompatMode=$isCompatMode)"
+
     companion object {
         const val EXTRA_NAME = "SaveInfoMetadata"
 
@@ -586,9 +627,9 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         autofillHint(10000, "newUsername", true)
         htmlHints(listOf("pass", "password"))
         htmlAttribute(400, "type", "password")
-        heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
-        heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
-        heuristic(238, "text variation visible password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
+        heuristic(240, "text variation password") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
+        heuristic(239, "text variation web password") {  inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
+        heuristic(238, "text variation visible password") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
         nonAutofillHint(200, passwordHints)
         contentDescription(300, passwordHints)
     }),
@@ -600,8 +641,8 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         htmlAttribute(400, "type", "mail")
         htmlAttribute(300, "name", "mail")
         heuristic(250, "hint=mail") { hint?.lowercase(Locale.ROOT)?.contains("mail") == true }
-        heuristic(240, "text variation email") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) }
-        heuristic(239, "text variation web email") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) }
+        heuristic(240, "text variation email") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS) }
+        heuristic(239, "text variation web email") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) }
         //TODO: In future might want to consider Email enum value both an existing and new username match?
     }),
     UserName(mutableListOf<AutofillHeuristic>().apply {
@@ -634,15 +675,23 @@ enum class AutofillInputType(val heuristics: List<AutofillHeuristic>) {
         defaults("newPassword", "password")
         autofillHint(10000, "password", true)
         htmlAttribute(400, "type", "password")
-        heuristic(240, "text variation password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
-        heuristic(239, "text variation web password") {  inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
-        heuristic(238, "text variation visible password") { inputType.hasFlag(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
+        heuristic(240, "text variation password") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD) }
+        heuristic(239, "text variation web password") {  inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) }
+        heuristic(238, "text variation visible password") { inputType.hasTextVariation(android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) }
         nonAutofillHint(200, passwordHints)
         contentDescription(300, passwordHints)
     }),
 }
 
 inline fun Int?.hasFlag(flag: Int) = this != null && flag and this == flag
+
+/**
+ * `TYPE_TEXT_VARIATION_*` values are enumerated values within `TYPE_MASK_VARIATION`, not independent
+ * bits, and are only meaningful for `TYPE_CLASS_TEXT`, so they must not be tested with [hasFlag].
+ */
+inline fun Int?.hasTextVariation(variation: Int) = this != null &&
+    (this and android.text.InputType.TYPE_MASK_CLASS) == android.text.InputType.TYPE_CLASS_TEXT &&
+    (this and android.text.InputType.TYPE_MASK_VARIATION) == variation
 inline fun Int.withFlag(flag: Int) = this or flag
 inline fun Int.minusFlag(flag: Int) = this and flag.inv()
 
