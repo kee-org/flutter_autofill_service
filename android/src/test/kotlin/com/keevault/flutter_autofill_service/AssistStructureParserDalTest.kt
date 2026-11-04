@@ -16,6 +16,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import android.content.pm.PackageManager
 
 /**
  * The app being filled controls every string in the AssistStructure except `activityComponent`
@@ -496,5 +497,66 @@ class AssistStructureParserDalTest {
             assertTrue(json, json.contains("\"appIdSource\":\"$name\""))
             assertEquals(source, AutofillMetadata.fromJsonString(json).appIdSource)
         }
+    }
+
+    // --- Wildcard App Links declarations and package visibility ---
+
+    @Test
+    fun wildcardDeclarationVerifiesSubdomains() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to VERIFIED))
+        val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "login.$BANK", field = "password", focused = true))))
+
+        assertTrue(parser.domain("login.$BANK").dalVerified)
+    }
+
+    @Test
+    fun wildcardDeclarationDoesNotVerifyTheParentItself() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to VERIFIED))
+        val parser = f.bankClaims("com.bank.app", listOf("com.bank.app"))
+
+        assertFalse(parser.domain(BANK).dalVerified)
+    }
+
+    @Test
+    fun wildcardDeclarationRespectsLabelBoundaries() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to VERIFIED))
+        val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "evil$BANK", field = "password", focused = true))))
+
+        assertFalse(parser.domain("evil$BANK").dalVerified)
+    }
+
+    @Test
+    fun exactDeclarationWinsOverWildcard() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to VERIFIED, "login.$BANK" to SELECTED))
+        val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "login.$BANK", field = "password", focused = true))))
+
+        assertFalse(parser.domain("login.$BANK").dalVerified)
+        assertTrue(parser.domain("login.$BANK").userSelected)
+    }
+
+    @Test
+    fun wildcardUserSelectionIsNotVerification() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to SELECTED))
+        val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "login.$BANK", field = "password", focused = true))))
+
+        assertFalse(parser.domain("login.$BANK").dalVerified)
+        assertTrue(parser.domain("login.$BANK").userSelected)
+    }
+
+    @Test
+    fun packageNotVisibleFailsClosed() {
+        val f = Fixture()
+        `when`(f.manager.getDomainVerificationUserState("com.bank.app"))
+            .thenThrow(PackageManager.NameNotFoundException("com.bank.app"))
+        val parser = f.bankClaims("com.bank.app", listOf("com.bank.app"))
+
+        assertTrue(parser.isWebOrigin)
+        assertFalse(parser.domain(BANK).dalVerified)
+        assertFalse(parser.domain(BANK).userSelected)
     }
 }

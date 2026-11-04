@@ -1,3 +1,9 @@
+## Unreleased
+
+* Refuse to reply (`resultWithDataset` and a non-null `resultWithDatasets` return `false`, and the authentication is cancelled) when the app or focused web domain of the screen being filled differs from the `AutofillMetadata` the consumer was given. The reply is built from the structure Android attaches when the user taps the suggestion, which can differ from the one the metadata came from.
+* Digital Asset Links checks now honour wildcard App Links declarations: `*.example.com` verifies subdomains of `example.com` (not `example.com` itself), matching how Android's intent filters treat it. An exact declaration still wins.
+* Log a specific warning when the DAL check is impossible because the requesting package is not visible to the autofill service (package visibility filtering); domains stay unverified, as before.
+
 ## 0.23.0
 
 * Fix example app configuration to prohibit malicious installed apps from forging requests for other apps/sites - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-7g4g-ggjf-xjvr

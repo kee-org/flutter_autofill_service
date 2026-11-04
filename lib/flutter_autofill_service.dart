@@ -179,6 +179,12 @@ class AutofillService {
         false;
   }
 
+  /// Replies with a single dataset. Returns false, and fills nothing, if the
+  /// reply could not be sent or if the screen no longer matches the
+  /// [AutofillMetadata] you were given: the reply is built from the screen as
+  /// it was when the user tapped the suggestion, and it is refused if the app
+  /// or the focused web domain differs from the one in that metadata, so
+  /// credentials chosen for one target never reach another.
   Future<bool> resultWithDataset(
       {String? id, String? label, String? username, String? password}) async {
     return (await _channel.invokeMethod<bool>(
@@ -191,6 +197,10 @@ class AutofillService {
         false;
   }
 
+  /// Replies with a list of datasets, or declines the request when [datasets]
+  /// is null. Like [resultWithDataset], a non-null list is refused (returning
+  /// false) if the app or the focused web domain no longer matches the
+  /// [AutofillMetadata] you were given.
   Future<bool> resultWithDatasets(List<PwDataset>? datasets) async {
     return (await _channel.invokeMethod<bool>('resultWithDatasets', {
           'datasets': datasets

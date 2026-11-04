@@ -27,8 +27,15 @@ data class WebDomain(
         val domain: String,
         /**
          * True if the app presenting the request is a known browser, or Android reports it as
-         * verified to handle links for exactly this domain. A domain the user merely allowed the
-         * app to open links for ([userSelected]) is not verified.
+         * verified to handle links for this domain. A domain the user merely allowed the app to
+         * open links for ([userSelected]) is not verified.
+         *
+         * For apps this is Android App Links verification: the site's `assetlinks.json` grants the
+         * app's signing certificate `delegate_permission/common.handle_all_urls`. That is not the
+         * `get_login_creds` relation that is meant for credential sharing, but it is the only one
+         * Android exposes, and either way the site's owner vouches for that certificate. The host
+         * must match one the app declares, either exactly or through a wildcard declaration
+         * (`*.example.com` covers subdomains of example.com but not example.com itself).
          */
         val dalVerified: Boolean = false,
         /**
@@ -343,7 +350,7 @@ class AssistStructureParser(
                     val hostMap = manager.getDomainVerificationUserState(trustedPackage)?.getHostToStateMap()
                     if (hostMap != null) {
                         for ((host, claim) in claimedDomains) {
-                            val state = hostMap[claim.domain] ?: hostMap[host]
+                            val state = domainVerificationState(hostMap, claim.domain, host)
                             if (state == DomainVerificationUserState.DOMAIN_STATE_VERIFIED) {
                                 verifiedHosts.add(host)
                                 logger.debug { "DAL verified: $trustedPackage is verified for domain ${claim.domain}" }
@@ -355,6 +362,11 @@ class AssistStructureParser(
                             }
                         }
                     }
+                } catch (e: PackageManager.NameNotFoundException) {
+                    // Android throws this when the package is not visible to us (package visibility
+                    // filtering, API 30+) as well as when it isn't installed. Either way nothing
+                    // can be verified, so all domains stay unverified (fail closed).
+                    logger.warn { "DAL verification impossible: $trustedPackage is not installed or not visible to this app. Have you declared QUERY_ALL_PACKAGES?" }
                 } catch (e: Exception) {
                     logger.warn { "DAL verification check failed for package $trustedPackage: ${e.message}" }
                 }
@@ -379,6 +391,25 @@ class AssistStructureParser(
                 focused = host == primaryHost
             )
         }.toSet()
+    }
+
+    /**
+     * The verification state Android reports for [host] (the lower case form of [domain]), or null
+     * if the app declares no matching host. An exact declaration wins. Otherwise a wildcard
+     * declaration `*.parent` applies to any strict subdomain of `parent`, the way Android's intent
+     * filters match it, and the best state of all matching wildcards is used.
+     */
+    internal fun domainVerificationState(hostMap: Map<String, Int>, domain: String, host: String): Int? {
+        (hostMap[domain] ?: hostMap[host])?.let { return it }
+        val wildcardStates = hostMap.filter { (declared, _) ->
+            declared.startsWith("*.") && declared.length > 2 &&
+                    host.endsWith(declared.substring(1).lowercase())
+        }.values
+        return when {
+            DomainVerificationUserState.DOMAIN_STATE_VERIFIED in wildcardStates -> DomainVerificationUserState.DOMAIN_STATE_VERIFIED
+            DomainVerificationUserState.DOMAIN_STATE_SELECTED in wildcardStates -> DomainVerificationUserState.DOMAIN_STATE_SELECTED
+            else -> wildcardStates.firstOrNull()
+        }
     }
 
     private fun traverseStructure(structure: AssistStructure) {
