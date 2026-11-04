@@ -1,5 +1,8 @@
-## 0.24.0 (unreleased)
+## 0.24.0
 
+* Refuse to reply (`resultWithDataset` and a non-null `resultWithDatasets` return `false`, and the authentication is cancelled) when the app or focused web domain of the screen being filled differs from the `AutofillMetadata` the consumer was given. The reply is built from the structure Android attaches when the user taps the suggestion, which can differ from the one the metadata came from.
+* Digital Asset Links checks now honour wildcard App Links declarations: `*.example.com` verifies subdomains of `example.com` (not `example.com` itself), matching how Android's intent filters treat it. An exact declaration still wins.
+* Log a specific warning when the DAL check is impossible because the requesting package is not visible to the autofill service (package visibility filtering); domains stay unverified, as before.
 * Android 13+ fill dialog: the unlock suggestion now has its own prominent button instead of reusing the small dropdown row. The button colours can be restyled.
 * New optional `AutofillPreferences.dialogHeaderText`: a subtitle shown above the unlock button in the fill dialog.
 

@@ -2,6 +2,7 @@ package com.keevault.flutter_autofill_service
 
 import android.R.attr.value
 import android.annotation.SuppressLint
+import android.app.Activity.RESULT_CANCELED
 import android.app.Activity.RESULT_OK
 import android.app.PendingIntent
 import android.app.assist.AssistStructure
@@ -207,6 +208,24 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         resultWithDataset(PwDataset(id, label, username, password), result)
     }
 
+    /**
+     * Cancels the authentication and reports `false` if [structure] would fill a different target
+     * from the one in the launch intent's metadata, which is what the consumer showed the user and
+     * chose the credentials for (see [fillTargetMismatch]). Returns true if the reply was refused.
+     */
+    private fun declineIfTargetChanged(structure: AssistStructureParser, result: Result): Boolean {
+        val shown = lastIntent?.getStringExtra(AutofillMetadata.EXTRA_NAME)?.let {
+            runCatching { AutofillMetadata.fromJsonString(it) }.getOrNull()
+        }
+        val reason = fillTargetMismatch(shown?.fillTarget(), structure.fillTarget()) ?: return false
+        logger.warn { "Not filling: $reason since the request was shown to the user." }
+        val activity = requireNotNull(this.activity)
+        activity.setResult(RESULT_CANCELED)
+        activity.finish()
+        result.success(false)
+        return true
+    }
+
     private fun resultWithNullDataset(result: Result) {
         val activity = requireNotNull(this.activity)
         val replyIntent = Intent()
@@ -256,6 +275,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         }
         val structure = AssistStructureParser(structureParcel, context)
         logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, webDomains=${structure.webDomains}" }
+        if (declineIfTargetChanged(structure, result)) return
         var totalToReturn = 0
         val isManualRequest = clientState.getBoolean("isManualRequest", false)
         val focusedId = structure.focusedAutofillId
@@ -672,6 +692,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
         logger.debug { "DAL: isWebOrigin=${structure.isWebOrigin}, webDomains=${structure.webDomains}" }
         logger.debug { "structure: $structure" }
         logger.info { "packageName: ${context.packageName}" }
+        if (declineIfTargetChanged(structure, result)) return
 
         val remoteViews = {
             RemoteViewsHelper.viewsWithNoAuth(
