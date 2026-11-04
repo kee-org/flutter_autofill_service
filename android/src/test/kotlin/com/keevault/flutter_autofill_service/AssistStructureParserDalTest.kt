@@ -529,13 +529,23 @@ class AssistStructureParserDalTest {
     }
 
     @Test
-    fun exactDeclarationWinsOverWildcard() {
+    fun exactDeclarationWinsOverVerifiedWildcard() {
         val f = Fixture()
         f.domainStates("com.bank.app", mapOf("*.$BANK" to VERIFIED, "login.$BANK" to SELECTED))
         val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "login.$BANK", field = "password", focused = true))))
 
         assertFalse(parser.domain("login.$BANK").dalVerified)
         assertTrue(parser.domain("login.$BANK").userSelected)
+    }
+
+    @Test
+    fun exactDeclarationWinsOverUserSelectedWildcard() {
+        val f = Fixture()
+        f.domainStates("com.bank.app", mapOf("*.$BANK" to SELECTED, "login.$BANK" to VERIFIED))
+        val parser = f.parser("com.bank.app", Node(children = listOf(Node(webDomain = "login.$BANK", field = "password", focused = true))))
+
+        assertTrue(parser.domain("login.$BANK").dalVerified)
+        assertFalse(parser.domain("login.$BANK").userSelected)
     }
 
     @Test
