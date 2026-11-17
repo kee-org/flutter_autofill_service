@@ -36,6 +36,7 @@ class AutofillPreferences {
     this.useInAppSelection = false,
     this.useEphemeralDataset = true,
     this.enableFillDialog = true,
+    this.dialogHeaderText,
   });
 
   factory AutofillPreferences.fromJson(Map<dynamic, dynamic> json) =>
@@ -46,6 +47,7 @@ class AutofillPreferences {
         useInAppSelection: json['useInAppSelection'] as bool? ?? false,
         useEphemeralDataset: json['useEphemeralDataset'] as bool? ?? true,
         enableFillDialog: json['enableFillDialog'] as bool? ?? true,
+        dialogHeaderText: json['dialogHeaderText'] as String?,
       );
 
   final bool enableDebug;
@@ -82,6 +84,15 @@ class AutofillPreferences {
   /// and Android versions.
   final bool enableFillDialog;
 
+  /// Subtitle shown above the unlock button in Android's fill dialog (Android
+  /// 13 / API 33 and later, and only when the app being filled also supports
+  /// the dialog). Null (default) shows no subtitle. Pass localised text, for
+  /// example from your app's strings. Blank text is treated as no subtitle.
+  ///
+  /// [AutofillService.setPreferences] replaces the whole stored object, so keep
+  /// this value when changing other preferences (use [copyWith], which does).
+  final String? dialogHeaderText;
+
   AutofillPreferences copyWith({
     bool? enableDebug,
     bool? enableSaving,
@@ -89,6 +100,8 @@ class AutofillPreferences {
     bool? useInAppSelection,
     bool? useEphemeralDataset,
     bool? enableFillDialog,
+    // A function, not a value, so that copyWith(dialogHeaderText: () => null) can clear it.
+    String? Function()? dialogHeaderText,
   }) =>
       AutofillPreferences(
         enableDebug: enableDebug ?? this.enableDebug,
@@ -97,6 +110,8 @@ class AutofillPreferences {
         useInAppSelection: useInAppSelection ?? this.useInAppSelection,
         useEphemeralDataset: useEphemeralDataset ?? this.useEphemeralDataset,
         enableFillDialog: enableFillDialog ?? this.enableFillDialog,
+        dialogHeaderText:
+            dialogHeaderText != null ? dialogHeaderText() : this.dialogHeaderText,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -106,6 +121,8 @@ class AutofillPreferences {
         'useInAppSelection': useInAppSelection,
         'useEphemeralDataset': useEphemeralDataset,
         'enableFillDialog': enableFillDialog,
+        // Omitted when null so Kotlin's Map<String, Any> never receives a null value.
+        if (dialogHeaderText != null) 'dialogHeaderText': dialogHeaderText,
       };
 }
 

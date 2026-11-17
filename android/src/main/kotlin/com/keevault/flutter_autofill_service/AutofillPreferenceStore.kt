@@ -12,8 +12,14 @@ data class AutofillPreferences(
         val enableIMERequests: Boolean = true,
         val useInAppSelection: Boolean = false,
         val useEphemeralDataset: Boolean = true,
-        val enableFillDialog: Boolean = true
+        val enableFillDialog: Boolean = true,
+        /** Subtitle above the fill dialog's unlock button. Null (default) omits the header. Android 13+ only. */
+        val dialogHeaderText: String? = null
 ) {
+
+    /** [dialogHeaderText] if there is something to show, otherwise null. */
+    val effectiveDialogHeaderText: String?
+        get() = dialogHeaderText?.takeIf { it.isNotBlank() }
 
     companion object {
         private const val PREF_JSON_NAME = "AutofillPreferences"

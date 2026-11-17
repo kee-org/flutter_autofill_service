@@ -1,3 +1,9 @@
+## 0.24.0 (unreleased)
+
+* Android 13+ fill dialog: the unlock suggestion now has its own prominent button (filled, with your unlock icon and a trailing chevron) instead of reusing the small dropdown row. The button colours can be restyled by declaring `flutter_autofill_fill_dialog_button`, `flutter_autofill_fill_dialog_button_text` and `flutter_autofill_fill_dialog_header_text` colours in your app's `res/values` (see the Readme and example app).
+* New optional `AutofillPreferences.dialogHeaderText`: a subtitle shown above the unlock button in the fill dialog. Default `null` shows no subtitle, so existing apps are unaffected apart from the button's new look. Pass localised text from your own app. `AutofillPreferences.copyWith` keeps the stored value unless you pass `dialogHeaderText: () => value`.
+* The button's label is still the `unlock_label` manifest meta-data value and is therefore not yet localisable.
+
 ## 0.23.0
 
 * Fix example app configuration to prohibit malicious installed apps from forging requests for other apps/sites - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-7g4g-ggjf-xjvr

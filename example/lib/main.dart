@@ -40,6 +40,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool? _fillRequestedInteractive;
   bool? _saveRequested;
   AutofillPreferences? _preferences;
+  final _dialogHeaderController = TextEditingController(
+      text: 'Tap the button below to fill using the example app');
 
   @override
   void initState() {
@@ -63,6 +65,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _dialogHeaderController.dispose();
     super.dispose();
   }
 
@@ -109,7 +112,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
                 Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
                 Text(
-                    'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}, in-app selection: ${_preferences?.useInAppSelection}, ephemeral: ${_preferences?.useEphemeralDataset}'),
+                    'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}, in-app selection: ${_preferences?.useInAppSelection}, ephemeral: ${_preferences?.useEphemeralDataset}, fill dialog: ${_preferences?.enableFillDialog}'),
+                Text(
+                    'Fill dialog header: ${_preferences?.dialogHeaderText == null ? '(none)' : '"${_preferences!.dialogHeaderText}"'}',
+                    key: const Key('currentDialogHeader')),
                 Text('Effective mode: $_effectiveMode\n\n'),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -172,6 +178,62 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                               await _updateStatus();
                             }
                           : null,
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Flexible(child: Text('Toggle: ')),
+                    ElevatedButton(
+                      child: const Text('Fill dialog (Android 13+)'),
+                      onPressed: () async {
+                        await AutofillService().setPreferences(
+                            _preferences!.copyWith(
+                                enableFillDialog:
+                                    !_preferences!.enableFillDialog));
+                        await _updateStatus();
+                      },
+                    ),
+                  ],
+                ),
+                // The fill dialog header is shown above the unlock button in
+                // Android's fill dialog (Android 13+), when the app being
+                // filled supports it. Use the test login form below to see it.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    key: const Key('dialogHeaderField'),
+                    controller: _dialogHeaderController,
+                    decoration: const InputDecoration(
+                        labelText: 'Fill dialog header text'),
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      key: const Key('applyDialogHeader'),
+                      child: const Text('Apply header'),
+                      onPressed: () async {
+                        // copyWith keeps every other preference as it is.
+                        await AutofillService().setPreferences(
+                            _preferences!.copyWith(
+                                dialogHeaderText: () =>
+                                    _dialogHeaderController.text));
+                        await _updateStatus();
+                      },
+                    ),
+                    ElevatedButton(
+                      key: const Key('clearDialogHeader'),
+                      child: const Text('Clear header'),
+                      onPressed: () async {
+                        await AutofillService().setPreferences(
+                            _preferences!
+                                .copyWith(dialogHeaderText: () => null));
+                        await _updateStatus();
+                      },
                     ),
                   ],
                 ),
