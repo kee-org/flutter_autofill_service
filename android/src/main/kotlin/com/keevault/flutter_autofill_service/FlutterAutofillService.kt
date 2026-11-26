@@ -19,6 +19,7 @@ import android.service.autofill.FillRequest.FLAG_SUPPORTS_FILL_DIALOG
 import android.view.View
 import android.view.View.AUTOFILL_TYPE_TEXT
 import android.view.autofill.AutofillId
+import android.widget.RemoteViews
 import com.keevault.flutter_autofill_service.SaveHelper.createSaveInfo
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
@@ -264,6 +265,11 @@ class FlutterAutofillService : AutofillService() {
             fillResponseBuilder.addDataset(lockedDataset)
             if (fillDialogRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 fillResponseBuilder.setFillDialogTriggerIds(*credentialFieldIds.toTypedArray())
+                prefs.effectiveDialogHeaderText?.let { text ->
+                    fillResponseBuilder.setDialogHeader(
+                        RemoteViewsHelper.fillDialogHeader(packageName, text)
+                    )
+                }
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val inlineRequest = if (enableIMERequests) {
@@ -283,7 +289,7 @@ class FlutterAutofillService : AutofillService() {
                 false
             ) else null
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val presentationDialog = if (fillDialogRequested) presentationMenu else null
+                val presentationDialog = if (fillDialogRequested) unlockDialogViews(useLabel) else null
                 val presentationBuilder =
                     Presentations.Builder().setMenuPresentation(presentationMenu)
                 if (presentationInline != null) presentationBuilder.setInlinePresentation(
@@ -297,6 +303,11 @@ class FlutterAutofillService : AutofillService() {
                     // Only the credential fields trigger it, not every
                     // view, to reduce the chance of it appearing as soon as the app loads.
                     fillResponseBuilder.setFillDialogTriggerIds(*credentialFieldIds.toTypedArray())
+                    prefs.effectiveDialogHeaderText?.let { text ->
+                        fillResponseBuilder.setDialogHeader(
+                            RemoteViewsHelper.fillDialogHeader(packageName, text)
+                        )
+                    }
                 }
                 val presentations = presentationBuilder.build()
                 fillResponseBuilder.setAuthentication(
@@ -346,6 +357,7 @@ class FlutterAutofillService : AutofillService() {
         intentSender: IntentSender,
     ): Dataset? {
         val menu = RemoteViewsHelper.viewsWithAuth(packageName, label, unlockDrawableId)
+        val dialog = if (fillDialogRequested) unlockDialogViews(label) else null
         var inline: InlinePresentation? = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && enableIMERequests) {
             val inlineRequest = request.inlineSuggestionsRequest
@@ -361,8 +373,20 @@ class FlutterAutofillService : AutofillService() {
                 )
             }
         }
-        return UnlockDatasetHelper.build(fieldIds, menu, inline, if (fillDialogRequested) menu else null, intentSender)
+        return UnlockDatasetHelper.build(fieldIds, menu, inline, dialog, intentSender)
     }
+
+    /**
+     * The fill dialog's unlock button. The colours come from the plugin's colour resources, so a
+     * consumer app can restyle them by declaring the same resource names in its own res/values.
+     */
+    private fun unlockDialogViews(label: String): RemoteViews =
+        RemoteViewsHelper.fillDialogUnlock(
+            packageName,
+            label,
+            unlockDrawableId,
+            getColor(R.color.flutter_autofill_fill_dialog_button_text),
+        )
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
         logger.info { "onSaveRequest." }

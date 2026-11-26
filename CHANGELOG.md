@@ -1,3 +1,8 @@
+## 0.24.0 (unreleased)
+
+* Android 13+ fill dialog: the unlock suggestion now has its own prominent button instead of reusing the small dropdown row. The button colours can be restyled.
+* New optional `AutofillPreferences.dialogHeaderText`: a subtitle shown above the unlock button in the fill dialog.
+
 ## 0.23.0
 
 * Fix example app configuration to prohibit malicious installed apps from forging requests for other apps/sites - https://github.com/kee-org/flutter_autofill_service/security/advisories/GHSA-7g4g-ggjf-xjvr

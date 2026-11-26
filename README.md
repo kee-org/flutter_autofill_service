@@ -67,6 +67,35 @@ The example app's `AutofillSelectionScreen` shows all of these.
 
 On Android 13 (API 33) and later, apps that support it can ask for autofill suggestions in a dialog that appears when a field is first focused. This is enabled by default and can be turned off with `AutofillPreferences.enableFillDialog`. It is experimental because behaviour varies between apps and Android versions, and some apps show the dialog as soon as they load rather than when a field is tapped. It applies to both the legacy and in-app selection flows.
 
+The unlock suggestion is shown as a prominent filled button (your `unlock_drawable_name` icon, the `unlock_label` text and a trailing chevron).
+
+#### Header text
+
+`AutofillPreferences.dialogHeaderText` sets an optional subtitle above the button. It is `null` by default (no subtitle) and blank text is treated the same way. Supply localised text from your app, for example:
+
+```dart
+final prefs = await AutofillService().preferences;
+await AutofillService().setPreferences(
+  prefs.copyWith(dialogHeaderText: () => 'Tap the button below to sign in'),
+);
+// To remove it again:
+await AutofillService().setPreferences(prefs.copyWith(dialogHeaderText: () => null));
+```
+
+`setPreferences` replaces the whole stored object, so always start from `await AutofillService().preferences` and use `copyWith`, which keeps the header unless you pass `dialogHeaderText`. The header is only shown with the fill dialog. In the legacy flow the "N matches..." header that `resultWithDatasets` supplies is separate and unaffected.
+
+#### Restyling the button
+
+Declare any of these colours in your app's `res/values` (for example `res/values/colors.xml`) to override the plugin's defaults; the example app overrides the button colour:
+
+| Colour name | Default | Used for |
+|---|---|---|
+| `flutter_autofill_fill_dialog_button` | `#FF3F51B5` | Button background |
+| `flutter_autofill_fill_dialog_button_text` | `#FFFFFFFF` | Button label, icon tint and chevron |
+| `flutter_autofill_fill_dialog_header_text` | `#FF5F6368` | Header text |
+
+The views are rendered by the system, not by your app, so they use fixed (not theme-dependent) colours and the same look in light and dark mode. Choose opaque colours with enough contrast.
+
 ### Deciding whether a request is genuine (`AutofillMetadata`)
 
 Any installed app can claim to be another app or to display another website, so do not fill credentials based on `webDomains` or `appId` alone. `AutofillMetadata` provides these signals:

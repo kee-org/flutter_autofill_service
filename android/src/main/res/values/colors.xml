@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fill dialog unlock button. Override any of these in the host app's res/values to restyle it. -->
+    <color name="flutter_autofill_fill_dialog_button">#FF3F51B5</color>
+    <color name="flutter_autofill_fill_dialog_button_text">#FFFFFFFF</color>
+    <!-- Fill dialog header text (the subtitle above the button). -->
+    <color name="flutter_autofill_fill_dialog_header_text">#FF5F6368</color>
+</resources>
