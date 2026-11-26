@@ -483,9 +483,15 @@ internal fun buildExcludedPackages(ownPackage: String, consumerList: String?): S
         .filter { it.isNotEmpty() }
         .toSet()
 
-/** True if any package identified for the request, from any source, is excluded. */
+/**
+ * True if any package identified for the request, from any source, is excluded.
+ *
+ * The component is checked before normalisation, so an `android` activity is excluded. The view
+ * node and title packages are the normalised ones, which never contain `android`: ordinary apps
+ * use framework resource IDs, so matching those would decline requests from almost every app.
+ */
 internal fun isExcluded(parser: AssistStructureParser, excluded: Set<String>): Boolean =
-    isExcluded(parser.componentPackage, parser.nodeIdPackages, parser.titlePackages, excluded)
+    isExcluded(parser.systemComponentPackage, parser.nodeIdPackages, parser.titlePackages, excluded)
 
 internal fun isExcluded(
     componentPackage: String?,

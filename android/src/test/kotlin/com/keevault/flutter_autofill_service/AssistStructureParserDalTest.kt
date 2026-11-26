@@ -475,6 +475,42 @@ class AssistStructureParserDalTest {
         assertFalse(parser.appIdTrusted)
     }
 
+    // --- exclusion ---
+
+    private val builtInExclusions = buildExcludedPackages("com.consumer.app", null)
+
+    @Test
+    fun frameworkComponentIsExcluded() {
+        val f = Fixture()
+        val parser = f.bankClaims("android", listOf("com.bank.app"))
+
+        assertTrue(isExcluded(parser, builtInExclusions))
+    }
+
+    @Test
+    fun frameworkViewNodeIdsDoNotExcludeAnOrdinaryApp() {
+        val f = Fixture()
+        val parser = f.bankClaims("com.bank.app", listOf("android"))
+
+        assertFalse(isExcluded(parser, builtInExclusions))
+    }
+
+    @Test
+    fun frameworkViewNodeIdsDoNotExcludeARequestWithNoComponent() {
+        val f = Fixture()
+        val parser = f.bankClaims(null, listOf("android"))
+
+        assertFalse(isExcluded(parser, builtInExclusions))
+    }
+
+    @Test
+    fun consumerExcludedComponentIsExcluded() {
+        val f = Fixture()
+        val parser = f.parser("com.applock.one", Node())
+
+        assertTrue(isExcluded(parser, buildExcludedPackages("com.consumer.app", "com.applock.one")))
+    }
+
     @Test
     fun noPackagesMeansNoAppIdSource() {
         val f = Fixture()

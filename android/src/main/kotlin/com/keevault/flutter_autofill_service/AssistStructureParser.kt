@@ -78,6 +78,14 @@ class AssistStructureParser(
     val allNodes = mutableListOf<ViewNode>()
 
     var componentPackage: String? = null
+
+    /**
+     * The package of the system-supplied activity component, before any normalisation. Unlike
+     * [componentPackage] it can be `android`. For exclusion checks only: never use it to identify
+     * the app, which is what [componentPackage] and [appId] are for.
+     */
+    val systemComponentPackage: String? = structure.activityComponent?.packageName
+
     val nodeIdPackages = HashSet<String>()
     val titlePackages = HashSet<String>()
 

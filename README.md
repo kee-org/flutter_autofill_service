@@ -28,6 +28,8 @@ The autofill service never offers to fill or save for a few system apps, your ow
     android:value="com.example.applock,com.example.vpn" />
 ```
 
+Excluded packages are matched against the activity component supplied by Android, and also against the view node ID packages and window titles supplied by the app being filled. The exception is the built-in `android` entry, which only matches the activity component: ordinary apps use framework view IDs (`android.R.id.*`), so those do not exclude a request.
+
 Apart from the obvious fake responses and buttons, there is one significant difference between the example app and a real world app:
 
 If your meta-data references a drawable that you do not already reference from elsewhere in your app, AGP will by default exclude it from the release apk/aab build as part of its resource shrinkage process. This is because the resource is only loaded by string name at runtime. To fix this, create (or modify) `android/app/src/main/res/raw/keep.xml` with a `resources` element like this:
