@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:universal_platform/universal_platform.dart';
 
+export 'app_signer_pin.dart';
+export 'digital_asset_links.dart';
+
 final _logger = Logger('flutter_autofill_service');
 
 enum AutofillServiceStatus {
@@ -263,6 +266,27 @@ enum AppIdSource {
   none,
 }
 
+/// The shape of [AutofillMetadata.appSigningCertSha256]. Android reports an
+/// app's signing identity in one of two mutually exclusive shapes that must be
+/// compared differently, so the list of fingerprints cannot be interpreted
+/// without it. [AppSignerPin] does the right comparison for each.
+enum AppSigningCertKind {
+  /// No fingerprints are available (see [AutofillMetadata.appSigningCertSha256]
+  /// for why).
+  none,
+
+  /// One signer. The fingerprints are its key rotation lineage (APK Signature
+  /// Scheme v3), oldest first, and the LAST entry is the certificate that
+  /// currently signs the app ([AutofillMetadata.appSigningCertCurrentSha256]).
+  /// An app that never rotated its key has exactly one entry.
+  single,
+
+  /// Several independent signers, all of which signed the APK. The fingerprints
+  /// are a set in no meaningful order. Android does not support key rotation
+  /// for these.
+  multiple,
+}
+
 class AutofillMetadata {
   AutofillMetadata({
     this.appId,
@@ -270,6 +294,8 @@ class AutofillMetadata {
     required this.webDomains,
     this.isWebOrigin = false,
     this.appIsBrowser = false,
+    this.appSigningCertSha256 = const [],
+    this.appSigningCertKind = AppSigningCertKind.none,
     required this.saveInfo,
   });
   factory AutofillMetadata.fromJson(Map<dynamic, dynamic> json) {
@@ -285,6 +311,13 @@ class AutofillMetadata {
           {},
       isWebOrigin: json['isWebOrigin'] as bool? ?? false,
       appIsBrowser: json['appIsBrowser'] as bool? ?? false,
+      appSigningCertSha256: (json['appSigningCertSha256'] as Iterable?)
+              ?.whereType<String>()
+              .toList(growable: false) ??
+          const [],
+      appSigningCertKind:
+          AppSigningCertKind.values.asNameMap()[json['appSigningCertKind']] ??
+              AppSigningCertKind.none,
       saveInfo:
           saveInfoJson != null ? SaveInfoMetadata.fromJson(saveInfoJson) : null,
     );
@@ -326,6 +359,63 @@ class AutofillMetadata {
   /// an override list of known non-browser apps that handle https links (e.g. RSS
   /// readers, "Read it later apps", etc.). Does not affect [AutofillWebDomain.dalVerified].
   final bool appIsBrowser;
+
+  /// SHA-256 fingerprints of the certificate(s) that signed the app identified
+  /// by [appId], formatted like `sha256_cert_fingerprints` in `assetlinks.json`
+  /// (upper case hex pairs separated by colons, e.g. `14:6D:E9:...`).
+  ///
+  /// Only meaningful when [appIdTrusted] is true: for any other source the
+  /// package name is chosen by the app being filled so nothing is looked up and
+  /// this is empty. It is also empty when it cannot be determined: the app
+  /// that hosts this plugin has not declared the `QUERY_ALL_PACKAGES`
+  /// permission so the requesting app is not visible to it (see the Readme), the
+  /// request has no activity component, or the lookup failed. [appIsBrowser]
+  /// requests are not an app identity so a browser's value is not useful.
+  ///
+  /// [appId] alone does not identify an app: a different APK, signed by someone
+  /// else, can use the same package name (for example when sideloaded onto a new
+  /// device). To detect that, pin the fingerprints per saved entry using trust
+  /// on first use: store this list when the user first approves filling an entry
+  /// from [appId], and on later requests compare it with what is reported now.
+  ///
+  /// A mismatch is not proof of an attack. The same app installed from another
+  /// store (for example F-Droid builds versus Google Play) or as a debug build
+  /// is signed by a different key, so prompt the user to confirm rather than
+  /// blocking outright.
+  ///
+  /// How to read this list depends on [appSigningCertKind]:
+  ///
+  /// * [AppSigningCertKind.single]: the key rotation lineage (APK Signature
+  ///   Scheme v3), oldest first. The LAST entry is the certificate that signs
+  ///   the app now ([appSigningCertCurrentSha256]). Pin only that one. A later
+  ///   request is genuine if its lineage still contains it (the app rotated
+  ///   forward, which only the holder of that key can do). A lineage that
+  ///   lacks it, such as one holding only an older certificate, is not: someone
+  ///   who obtained an old, retired key can sign an APK that lists only that
+  ///   key, so "any pinned fingerprint is present" is NOT a safe test.
+  /// * [AppSigningCertKind.multiple]: a set of independent signers, in no
+  ///   meaningful order. Require the whole set to be equal to the pinned set.
+  ///   A subset is a different identity, and a signer cannot be added or
+  ///   rotated without producing a different set.
+  ///
+  /// Use [AppSignerPin] rather than comparing lists yourself.
+  final List<String> appSigningCertSha256;
+
+  /// The shape of [appSigningCertSha256]: [AppSigningCertKind.none] exactly
+  /// when that list is empty. Defaults to none if the native side did not send
+  /// it.
+  final AppSigningCertKind appSigningCertKind;
+
+  /// The certificate that currently signs the app: the last fingerprint of
+  /// [appSigningCertSha256] when [appSigningCertKind] is
+  /// [AppSigningCertKind.single], otherwise null (there is no single current
+  /// certificate for several signers, or none is known).
+  String? get appSigningCertCurrentSha256 =>
+      appSigningCertKind == AppSigningCertKind.single &&
+              appSigningCertSha256.isNotEmpty
+          ? appSigningCertSha256.last
+          : null;
+
   final SaveInfoMetadata? saveInfo;
 
   @override
@@ -337,6 +427,8 @@ class AutofillMetadata {
         'webDomains': webDomains.map((e) => e.toJson()),
         'isWebOrigin': isWebOrigin,
         'appIsBrowser': appIsBrowser,
+        'appSigningCertSha256': appSigningCertSha256,
+        'appSigningCertKind': appSigningCertKind.name,
         'saveInfo': saveInfo
       };
 }
@@ -391,6 +483,11 @@ class AutofillWebDomain {
   /// Asset Links, Android 12+). A verified domain says nothing about the other
   /// domains in the same request. Never true merely because the user chose to
   /// let the app open the domain's links: see [userSelected].
+  ///
+  /// For apps that are not browsers this also needs the app that hosts this
+  /// plugin to be able to see the requesting app, which on Android 11+ means
+  /// declaring the `QUERY_ALL_PACKAGES` permission. Without it the check fails
+  /// and the domain is unverified. See the Readme section on package visibility.
   final bool dalVerified;
 
   /// True if the app declares this domain but Android has not verified it, and

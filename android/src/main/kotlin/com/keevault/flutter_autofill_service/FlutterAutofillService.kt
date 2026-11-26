@@ -215,7 +215,9 @@ class FlutterAutofillService : AutofillService() {
                 mode,
                 null,
                 parser.isWebOrigin,
-                parser.appIsBrowser
+                parser.appIsBrowser,
+                parser.appSigningCertSha256,
+                parser.appSigningCertKind
             )
             //startAuthIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) Can't start new task cos results will never be returned
             val pendingIntent: PendingIntent
@@ -413,6 +415,8 @@ class FlutterAutofillService : AutofillService() {
         var webDomains: Set<WebDomain>? = null
         var isWebOrigin: Boolean = false
         var appIsBrowser: Boolean = false
+        var appSigningCertSha256: List<String> = emptyList()
+        var appSigningCertKind: AppSigningCertKind = AppSigningCertKind.NONE
 
         request.fillContexts.reversed().forEach { context ->
             val parser = AssistStructureParser(context.structure, this)
@@ -439,6 +443,8 @@ class FlutterAutofillService : AutofillService() {
                 appId = parser.appId
                 appIdSource = parser.appIdSource
                 appIsBrowser = parser.appIsBrowser
+                appSigningCertSha256 = parser.appSigningCertSha256
+                appSigningCertKind = parser.appSigningCertKind
             }
             if (webDomains == null && parser.webDomains.isNotEmpty()) {
                 webDomains = parser.webDomains
@@ -457,7 +463,9 @@ class FlutterAutofillService : AutofillService() {
             "/autofill_save",
             SaveInfoMetadata(username, password, isCompatMode),
             isWebOrigin,
-            appIsBrowser
+            appIsBrowser,
+            appSigningCertSha256,
+            appSigningCertKind
         )
         startIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(startIntent)
@@ -510,6 +518,10 @@ data class AutofillMetadata(
         val webDomains: Set<WebDomain>,
         val isWebOrigin: Boolean = false,
         val appIsBrowser: Boolean = false,
+        /** See [AssistStructureParser.appSigningCertSha256]. */
+        val appSigningCertSha256: List<String> = emptyList(),
+        /** See [AssistStructureParser.appSigningCertKind]. Absent from older JSON, so defaults to NONE. */
+        val appSigningCertKind: AppSigningCertKind = AppSigningCertKind.NONE,
         val saveInfo: SaveInfoMetadata?
 ) {
     companion object {

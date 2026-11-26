@@ -186,7 +186,7 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
 
     private fun hideSensitiveMetadata(metadata: AutofillMetadata?): String {
         if (metadata == null) return ""
-        return "appId: ${metadata.appId} (source:${metadata.appIdSource}), domains: ${metadata.webDomains}, compatMode: ${metadata.saveInfo?.isCompatMode}"
+        return "appId: ${metadata.appId} (source:${metadata.appIdSource}), domains: ${metadata.webDomains}, signingCerts: ${metadata.appSigningCertSha256.size} (${metadata.appSigningCertKind}), compatMode: ${metadata.saveInfo?.isCompatMode}"
     }
 
     private fun getDrawable(name: String): Int {
@@ -451,7 +451,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.appIsBrowser
+                structure.appIsBrowser,
+                structure.appSigningCertSha256,
+                structure.appSigningCertKind
             )
             val intentSender: IntentSender
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -612,7 +614,9 @@ class FlutterAutofillPluginImpl(val context: Context) : MethodCallHandler,
                 "/autofill_select",
                 null,
                 structure.isWebOrigin,
-                structure.appIsBrowser
+                structure.appIsBrowser,
+                structure.appSigningCertSha256,
+                structure.appSigningCertKind
             )
             val intentSender: IntentSender
             @SuppressLint("UnspecifiedImmutableFlag")

@@ -5,7 +5,9 @@ import 'package:flutter_autofill_service/flutter_autofill_service.dart';
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 
+import 'assetlinks_check.dart';
 import 'autofill_selection_screen.dart';
+import 'signature_pins.dart';
 import 'test_login_form.dart';
 
 final _logger = Logger('main');
@@ -111,6 +113,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 Text('fillRequestedAutomatic: $_fillRequestedAutomatic\n'),
                 Text('fillRequestedInteractive: $_fillRequestedInteractive\n'),
                 Text('SuppliedAutofillMetadata: $_autofillMetadata\n'),
+                // Demonstrations of using appSigningCertSha256 and the
+                // get_login_creds helper, for the current request (if any).
+                if (_autofillMetadata != null) ...[
+                  SignerStatusCard(metadata: _autofillMetadata),
+                  LoginCredsCheckCard(metadata: _autofillMetadata),
+                ],
                 Text(
                     'Prefs: debug: ${_preferences?.enableDebug}, save: ${_preferences?.enableSaving}, IME: ${_preferences?.enableIMERequests}, in-app selection: ${_preferences?.useInAppSelection}, ephemeral: ${_preferences?.useEphemeralDataset}, fill dialog: ${_preferences?.enableFillDialog}'),
                 Text(
@@ -244,6 +252,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
                             builder: (_) => const TestLoginForm())),
+                  ),
+                ),
+                Builder(
+                  builder: (context) => ElevatedButton(
+                    key: const Key('showSignaturePins'),
+                    child: const Text('View/clear pinned app signers'),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const SignaturePinsScreen())),
                   ),
                 ),
                 ElevatedButton(

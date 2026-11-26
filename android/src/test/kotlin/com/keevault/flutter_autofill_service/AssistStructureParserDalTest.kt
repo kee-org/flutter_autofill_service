@@ -16,7 +16,10 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.Signature
+import android.content.pm.SigningInfo
 
 /**
  * The app being filled controls every string in the AssistStructure except `activityComponent`
@@ -51,8 +54,23 @@ class AssistStructureParserDalTest {
 
     private class Fixture {
         val manager: DomainVerificationManager = mock(DomainVerificationManager::class.java)
+        val packageManager: PackageManager = mock(PackageManager::class.java)
         val context: Context = mock(Context::class.java).also {
             `when`(it.getSystemService(Context.DOMAIN_VERIFICATION_SERVICE)).thenReturn(manager)
+            `when`(it.packageManager).thenReturn(packageManager)
+        }
+
+        /** Declares that [pkg] is visible and signed by the single certificate [cert]. */
+        fun signedBy(pkg: String, cert: ByteArray) {
+            val signature = mock(Signature::class.java)
+            `when`(signature.toByteArray()).thenReturn(cert)
+            val signingInfo = mock(SigningInfo::class.java)
+            `when`(signingInfo.hasMultipleSigners()).thenReturn(false)
+            `when`(signingInfo.apkContentsSigners).thenReturn(arrayOf(signature))
+            `when`(signingInfo.signingCertificateHistory).thenReturn(arrayOf(signature))
+            val packageInfo = PackageInfo()
+            packageInfo.signingInfo = signingInfo
+            `when`(packageManager.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)).thenReturn(packageInfo)
         }
 
         /** Declares what Android reports for [pkg]'s links: host -> DOMAIN_STATE_* */
@@ -604,5 +622,55 @@ class AssistStructureParserDalTest {
         assertTrue(parser.isWebOrigin)
         assertFalse(parser.domain(BANK).dalVerified)
         assertFalse(parser.domain(BANK).userSelected)
+    }
+
+    // --- signing certificates of the component package ---
+
+    @Test
+    fun componentPackageSigningCertificatesAreReported() {
+        val f = Fixture()
+        f.signedBy("com.bank.app", "abc".toByteArray())
+        val parser = f.bankClaims("com.bank.app", emptyList())
+
+        assertEquals(
+            listOf("BA:78:16:BF:8F:01:CF:EA:41:41:40:DE:5D:AE:22:23:B0:03:61:A3:96:17:7A:9C:B4:10:FF:61:F2:00:15:AD"),
+            parser.appSigningCertSha256
+        )
+        assertEquals(AppSigningCertKind.SINGLE, parser.appSigningCertKind)
+    }
+
+    @Test
+    fun certificatesAreNotReportedWhenThePackageIsNotVisible() {
+        val f = Fixture()
+        `when`(f.packageManager.getPackageInfo("com.bank.app", PackageManager.GET_SIGNING_CERTIFICATES))
+            .thenThrow(PackageManager.NameNotFoundException("com.bank.app"))
+        val parser = f.bankClaims("com.bank.app", emptyList())
+
+        assertTrue(parser.appSigningCertSha256.isEmpty())
+        assertEquals(AppSigningCertKind.NONE, parser.appSigningCertKind)
+    }
+
+    @Test
+    fun packageNamesChosenByTheAppBeingFilledAreNeverLookedUp() {
+        val f = Fixture()
+        f.signedBy("com.victim", "abc".toByteArray())
+        // No component, so the only package names are the ones the app being filled chose
+        val parser = f.bankClaims(null, listOf("com.victim"))
+
+        assertEquals(AppIdSource.VIEW_NODE, parser.appIdSource)
+        assertTrue(parser.appSigningCertSha256.isEmpty())
+        assertEquals(AppSigningCertKind.NONE, parser.appSigningCertKind)
+        verify(f.packageManager, never()).getPackageInfo("com.victim", PackageManager.GET_SIGNING_CERTIFICATES)
+    }
+
+    @Test
+    fun certificatesOfTheComponentAreUsedEvenIfViewNodesNameAnotherPackage() {
+        val f = Fixture()
+        f.signedBy("com.victim", "abc".toByteArray())
+        f.signedBy("com.evil", "evil".toByteArray())
+        val parser = f.bankClaims("com.evil", listOf("com.victim"))
+
+        assertEquals(1, parser.appSigningCertSha256.size)
+        verify(f.packageManager, never()).getPackageInfo("com.victim", PackageManager.GET_SIGNING_CERTIFICATES)
     }
 }

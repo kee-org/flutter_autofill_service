@@ -115,6 +115,25 @@ class AssistStructureParser(
     val appIdTrusted: Boolean get() = appIdSource == AppIdSource.COMPONENT
 
     /**
+     * SHA-256 fingerprints of the signing certificates of [componentPackage], in the format of
+     * `sha256_cert_fingerprints` in `assetlinks.json`. How to read the list depends on
+     * [appSigningCertKind]: for [AppSigningCertKind.SINGLE] it is the key rotation lineage, oldest
+     * first, and the LAST entry is the certificate currently signing the app; for
+     * [AppSigningCertKind.MULTIPLE] it is the set of independent signers, in no meaningful order.
+     * Empty unless [appIdSource] is [AppIdSource.COMPONENT] (the package of any other source is
+     * chosen by the app being filled), and also empty if Android does not let us see the package,
+     * which on Android 11+ needs the QUERY_ALL_PACKAGES permission (see the README).
+     */
+    var appSigningCertSha256: List<String> = emptyList()
+        private set
+
+    /**
+     * The shape of [appSigningCertSha256]; [AppSigningCertKind.NONE] exactly when it is empty.
+     */
+    var appSigningCertKind: AppSigningCertKind = AppSigningCertKind.NONE
+        private set
+
+    /**
      * True if [appId] is a web browser, so it must not be treated as the identity of an app.
      */
     var appIsBrowser: Boolean = false
@@ -277,6 +296,13 @@ class AssistStructureParser(
         appIsBrowser = appId?.let { isBrowser(it) } ?: false
         primaryHost = determinePrimaryHost()
         verifyDigitalAssetLinks()
+        // Same trust rule as verifyDigitalAssetLinks(): only the system-supplied component.
+        val trustedPackage = componentPackage
+        if (appIdSource == AppIdSource.COMPONENT && trustedPackage != null) {
+            val certificates = signingCertificates(context.packageManager, trustedPackage, sdkInt)
+            appSigningCertSha256 = certificates.sha256
+            appSigningCertKind = certificates.kind
+        }
     }
 
     private val knownBrowsers: List<String> get() = trustedCompatBrowsers + trustedNativeBrowsers
@@ -374,7 +400,7 @@ class AssistStructureParser(
                     // Android throws this when the package is not visible to us (package visibility
                     // filtering, API 30+) as well as when it isn't installed. Either way nothing
                     // can be verified, so all domains stay unverified (fail closed).
-                    logger.warn { "DAL verification impossible: $trustedPackage is not installed or not visible to this app. Have you declared QUERY_ALL_PACKAGES?" }
+                    logger.warn { "DAL verification impossible: $trustedPackage is not installed or not visible to this app. Have you declared QUERY_ALL_PACKAGES? See the README section on package visibility." }
                 } catch (e: Exception) {
                     logger.warn { "DAL verification check failed for package $trustedPackage: ${e.message}" }
                 }
@@ -449,24 +475,6 @@ class AssistStructureParser(
                 is ViewStructure.HtmlInfo -> "HtmlInfo{<$tag ${attributes?.filter { it.first?.lowercase() != "value" }?.joinToString(" ") { "${it.first}=\"${it.second}\"" }}>}"
                 else -> this.toString()
             }
-
-//TODO: this, if we ever have time to set up a system to track potential malicious apps masquerading as an app the user has credentials for. Really shouldn't be our problem though - Android should handle such things transparently! Maybe one day...
-// Also, Android 11+ restricts what package information we can find so it's likely this is impossible to achieve without demanding QUERY_ALL_PACKAGES permission. It's undocumented though, so perhaps packageManager.getPackageInfo is an exception to that requirement.
-    // private fun getSignatures(packageName: String) {
-    //     val signature: Signature;
-    //         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-    //             @Suppress("DEPRECATION")
-    //             @SuppressLint("PackageManagerGetSignatures")
-    //             val packageInfo: PackageInfo = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
-    //             @Suppress("DEPRECATION")
-    //             signature = packageInfo.signatures.first()
-    //             return signature.toByteArray() //TODO: return an array and update non-deprecated version; add array of sigs to data sent back to dart
-    //         } else {
-    //             val packageInfo: PackageInfo = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-    //             signature = packageInfo.signingInfo.apkContentsSigners.first()
-    //             result.success(signature.toByteArray())
-    //         }
-    // }
 
     /**
      * @param inheritedDomain the web domain of the nearest ancestor that has one, which also

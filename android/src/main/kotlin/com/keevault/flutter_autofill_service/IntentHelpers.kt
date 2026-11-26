@@ -19,7 +19,7 @@ object IntentHelpers {
     const val REQUEST_CODE_UNLOCK = 1230 // service: initial unlock
     const val REQUEST_CODE_SELECT_ANOTHER = 1231 // plugin: "Use a different entry"
 
-    fun getStartIntent(activityName: String, appId: String?, appIdSource: AppIdSource, webDomains: Set<WebDomain>, context: Context, autofillMode: String, saveInfo: SaveInfoMetadata?, isWebOrigin: Boolean = false, appIsBrowser: Boolean = false): Intent {
+    fun getStartIntent(activityName: String, appId: String?, appIdSource: AppIdSource, webDomains: Set<WebDomain>, context: Context, autofillMode: String, saveInfo: SaveInfoMetadata?, isWebOrigin: Boolean = false, appIsBrowser: Boolean = false, appSigningCertSha256: List<String> = emptyList(), appSigningCertKind: AppSigningCertKind = AppSigningCertKind.NONE): Intent {
         val startIntent = Intent()
         startIntent.setClassName(context, activityName)
         startIntent.putExtra("autofill_mode", autofillMode)
@@ -28,7 +28,7 @@ object IntentHelpers {
         // https://stackoverflow.com/a/39478479/109219
         startIntent.putExtra(
                 AutofillMetadata.EXTRA_NAME,
-                AutofillMetadata(appId = appId, appIdSource = appIdSource, webDomains = webDomains, isWebOrigin = isWebOrigin, appIsBrowser = appIsBrowser, saveInfo = saveInfo).toJsonString()
+                AutofillMetadata(appId = appId, appIdSource = appIdSource, webDomains = webDomains, isWebOrigin = isWebOrigin, appIsBrowser = appIsBrowser, appSigningCertSha256 = appSigningCertSha256, appSigningCertKind = appSigningCertKind, saveInfo = saveInfo).toJsonString()
         )
 
         // Make the intent explicit to allow mutability

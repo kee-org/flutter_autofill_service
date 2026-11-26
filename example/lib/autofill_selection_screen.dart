@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_autofill_service/flutter_autofill_service.dart';
 import 'package:logging/logging.dart';
 
+import 'assetlinks_check.dart';
+import 'signature_pins.dart';
+
 final _logger = Logger('AutofillSelectionScreen');
 
 final _demoEntries = <PwDataset>[
@@ -40,15 +43,27 @@ class _AutofillSelectionScreenState extends State<AutofillSelectionScreen> {
   String _query = '';
 
   Future<void> _submit(PwDataset entry) async {
+    // Check the signing certificate of the app being filled against its pin.
+    // If it changed since it was pinned the user has to confirm.
+    final decision = await checkSignerBeforeFill(context, widget.metadata);
+    if (!decision.proceed) {
+      return;
+    }
     // The plugin finishes the host activity after a result, so no Navigator.pop.
     // Used by the in-app selection flow and the legacy "Use a different entry" launch.
     _logger.fine('resultWithDataset');
-    await AutofillService().resultWithDataset(
+    final delivered = await AutofillService().resultWithDataset(
       id: entry.id,
       label: entry.label,
       username: entry.username,
       password: entry.password,
     );
+    // Only record (or move) the pin once the plugin has accepted the reply, so
+    // a refused fill never pins anything. The write races with the activity
+    // finishing; see commitSignerPin for why losing it is safe.
+    if (delivered) {
+      await commitSignerPin(decision);
+    }
   }
 
   @override
@@ -77,11 +92,6 @@ class _AutofillSelectionScreenState extends State<AutofillSelectionScreen> {
       ),
       body: Column(
         children: [
-          if (origin.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text('For: $origin'),
-            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
@@ -93,6 +103,16 @@ class _AutofillSelectionScreenState extends State<AutofillSelectionScreen> {
           Expanded(
             child: ListView(
               children: [
+                if (origin.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text('For: $origin'),
+                  ),
+                // Reference uses of appSigningCertSha256 (pinning) and the
+                // get_login_creds helper. Filling is gated by the pin check in
+                // _submit, whether or not the user looks at these.
+                SignerStatusCard(metadata: widget.metadata),
+                LoginCredsCheckCard(metadata: widget.metadata),
                 for (final e in entries)
                   ListTile(
                     title: Text(e.label),

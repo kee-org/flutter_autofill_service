@@ -2,6 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Needed to fetch assetlinks.json in the get_login_creds demo. (The debug
+         and profile manifests add it too, for tooling; release needs it here.) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Lets the plugin see the app being filled, which it needs to verify
+         Digital Asset Links for apps that are not browsers (dalVerified) and to
+         report their signing certificates (appSigningCertSha256). This is a
+         Google Play restricted permission: you must justify its use in Play
+         Console, so only add it to your own app if you are eligible. See the
+         Readme section "Package visibility (QUERY_ALL_PACKAGES)". -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
     <application
         android:label="flutter_autofill_service_example"
         android:icon="@mipmap/ic_launcher">

@@ -9,12 +9,18 @@ internal data class FillTarget(
         val appIdSource: AppIdSource,
         /** Lower case host of the focused web domain, or null if there is none. */
         val focusedHost: String?,
+        /** See [AssistStructureParser.appSigningCertSha256]. */
+        val appSigningCertSha256: List<String> = emptyList(),
+        /** See [AssistStructureParser.appSigningCertKind]. */
+        val appSigningCertKind: AppSigningCertKind = AppSigningCertKind.NONE,
 )
 
 /** The target the consumer was shown, from the metadata in the launch intent. */
 internal fun AutofillMetadata.fillTarget() = FillTarget(
         appId = appId,
         appIdSource = appIdSource,
+        appSigningCertSha256 = appSigningCertSha256,
+        appSigningCertKind = appSigningCertKind,
         focusedHost = webDomains.firstOrNull { it.focused }?.domain?.lowercase(),
 )
 
@@ -27,6 +33,8 @@ internal fun AutofillMetadata.fillTarget() = FillTarget(
 internal fun AssistStructureParser.fillTarget() = FillTarget(
         appId = appId,
         appIdSource = appIdSource,
+        appSigningCertSha256 = appSigningCertSha256,
+        appSigningCertKind = appSigningCertKind,
         focusedHost = webDomains.firstOrNull { it.focused }?.domain?.lowercase(),
 )
 
@@ -46,6 +54,10 @@ internal fun AssistStructureParser.fillTarget() = FillTarget(
 internal fun fillTargetMismatch(shown: FillTarget?, current: FillTarget): String? = when {
     shown == null -> "no metadata describes the target the user was shown"
     shown.appId != current.appId || shown.appIdSource != current.appIdSource -> "the app being filled changed"
+    // A change of kind (single signer to multiple signers or back) is a change of signing identity
+    // even if the fingerprints happened to be equal.
+    shown.appSigningCertSha256 != current.appSigningCertSha256 ||
+        shown.appSigningCertKind != current.appSigningCertKind -> "the signing certificates of the app being filled changed"
     shown.focusedHost != current.focusedHost -> "the focused web domain changed"
     else -> null
 }
